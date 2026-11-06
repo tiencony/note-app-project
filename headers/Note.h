@@ -1,33 +1,30 @@
 #ifndef NOTE_H
 #define NOTE_H
 
+#include <string>
 
-#include <string>  
-
-class Note{
+class Note
+{
 private:
     std::string title;
     std::string content;
-    std::string createdTime;
+    std::string lastModified;
 
 public:
     Note();
-    Note(std::string title, std::string content, std::string createTime);
-    
-    const std::string& getTitle() const;
-    void setTitle(const std::string&  title);
+    Note(const std::string& title, const std::string& content, const std::string& lastModified);
 
-    std::string getContent() const;
-    void setContent(const std::string& content);
+    const std::string &getTitle() const;
+    void setTitle(const std::string &title);
 
-    std::string getCreatedTime() const;
-    void setCreatedTime(const std::string& createdTime);
+    const std::string &getContent() const;
+    void setContent(const std::string &content);
+
+    const std::string &getLastModified() const;
+    void setLastModified(const std::string &lastModified);
 
     void displayInfo() const;
     void displayNote() const;
-
 };
 
-
 #endif
-

@@ -1,21 +1,60 @@
 #include <iostream>
+#include <limits>
 #include "../headers/NoteManager.h"
 
-int main() {
-    // Khởi tạo NoteManager với sức chứa ban đầu là 2 (để test thử cơ chế resize)
+static void printMenu(){
+    std::cout << "\n===== QUAN LY GHI CHU =====\n"
+              << "1. Tao ghi chu\n"
+              << "2. Liet ke ghi chu\n"
+              << "3. Tim kiem theo tieu de\n"
+              << "0. Thoat\n"
+              << "Chon: ";
+}
+
+int main(){
     NoteManager manager(2);
+    manager.loadNotesFromDisk();
 
-    // 1. Tạo các ghi chú mới
-    manager.createNote("Hoc_Cpp", "Tim hieu ve con tro va cap phat dong trong C++.");
-    manager.createNote("Ke_hoach_tuan", "1. Hoan thanh NoteManager\n2. Xay dung ExpenseManager.");
+    int choice = -1;
+    while(choice != 0){
+        printMenu();
+        if(!(std::cin >> choice)){
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "Vui long nhap so!\n";
+            choice = -1;
+            continue;
+        }
+        std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-    // 2. Liệt kê danh sách ghi chú
-    std::cout << "\n--- DANH SACH TAT CA GHI CHU ---\n";
-    manager.listNotes();
-
-    // 3. Tìm kiếm ghi chú
-    std::cout << "\n--- TIM KIEM GHI CHU ('Cpp') ---\n";
-    manager.searchNote("Cpp");
-
+        switch(choice){
+            case 1: {
+                std::string title, content, line;
+                std::cout << "Tieu de: ";
+                std::getline(std::cin, title);
+                std::cout << "Noi dung (go dong rong de ket thuc):\n";
+                while(std::getline(std::cin, line) && !line.empty()){
+                    content += line + "\n";
+                }
+                manager.createNote(title, content);
+                break;
+            }
+            case 2:
+                manager.listNotes();
+                break;
+            case 3: {
+                std::string keyword;
+                std::cout << "Tu khoa: ";
+                std::getline(std::cin, keyword);
+                manager.searchTitle(keyword);
+                break;
+            }
+            case 0:
+                std::cout << "Tam biet!\n";
+                break;
+            default:
+                std::cout << "Lua chon khong hop le!\n";
+        }
+    }
     return 0;
 }

@@ -1,11 +1,16 @@
 #include "../headers/NoteManager.h"
 #include "../headers/Utils.h"
+#include "../headers/Note.h"
 
 #include <fstream>
 #include <filesystem>
 #include <iostream>
 #include <algorithm>
 #include <cctype>
+#include <sstream>
+
+
+namespace fs = std::filesystem;
 
 NoteManager::NoteManager(int initialCapacity){
     capacity = (initialCapacity > 0) ? initialCapacity : 10;
@@ -30,6 +35,7 @@ void NoteManager::resize(){
 }
 
 
+
 bool NoteManager::createNote(const std::string& title, const std::string& content){
     if(!checkTitle(title)) return false;
     if(isTitleExists(title)){
@@ -47,8 +53,7 @@ bool NoteManager::createNote(const std::string& title, const std::string& conten
         return false;
     }
 
-    outFile << "# " << title << "\n\n";
-    outFile << content << "\n";
+    outFile << content;
     outFile.close();
     std::cout << "Da luu ghi chu thanh cong vao " << filePath << std::endl;
 
@@ -56,7 +61,7 @@ bool NoteManager::createNote(const std::string& title, const std::string& conten
         resize();
     }
 
-    notesArray[count] = Note(title, content, "Today");
+    notesArray[count] = Note(title, content, getCurrentTime());
     count++;
     return true;
 
@@ -92,18 +97,49 @@ bool NoteManager::checkTitle(const std::string& input) const{
         return false;
     }
     if(input.find_first_of("/\\:*?\"<>|") != std::string::npos){
-        std::cout << "Tieu de chua ky tu khong hop le!\n";
         return false;
     }
     return true;
 }
 
 
+
+
+
 bool NoteManager::isTitleExists(const std::string& title) const{
     for(int i = 0; i < count; i++){
-        if(notesArray[i].getTitle() == title){
+        if(equalsIgnoreCase(notesArray[i].getTitle(), title)){
             return true;
         }
     }
     return false;
+}
+
+
+
+
+void NoteManager::loadNotesFromDisk(){
+    std::string dirPath = "vault/notes";
+    fs::create_directories(dirPath);
+    count = 0;
+
+    for(const auto& entry : fs::directory_iterator(dirPath)){
+        if(!entry.is_regular_file() || entry.path().extension() != ".md") continue;
+
+        std::ifstream inFile(entry.path());
+        if(!inFile){
+           std::cerr << "Khong the mo file: " << entry.path() << std::endl;
+           continue;
+        }
+
+        std::stringstream buffer;
+        buffer << inFile.rdbuf();
+
+        if(count >= capacity) resize();
+        notesArray[count] = Note(entry.path().stem().string(),
+                         buffer.str(),
+                         getFileTime(entry.path()));
+        count++;
+    }
+    std::cout << "Da tai " << count << " ghi chu.\n";
 }
