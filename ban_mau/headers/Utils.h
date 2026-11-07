@@ -1,0 +1,21 @@
+#ifndef UTILS_H
+#define UTILS_H
+
+#include <string>
+#include <filesystem>
+
+std::string getCurrentTime();
+std::string getFileTime(const std::filesystem::path& p);
+std::string formatTime(std::time_t t);
+
+
+std::size_t findIgnoreCase(const std::string& text, const std::string& keyword);
+bool containsIgnoreCase(const std::string& text, const std::string& keyword);
+bool equalsIgnoreCase(const std::string& str1, const std::string& str2);
+
+std::string makeSnippet(const std::string& text, std::size_t pos, std::size_t keywordLen);
+
+
+
+
+#endif

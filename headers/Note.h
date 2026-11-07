@@ -3,8 +3,7 @@
 
 #include <string>
 
-class Note
-{
+class Note{
 private:
     std::string title;
     std::string content;

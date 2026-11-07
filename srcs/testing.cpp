@@ -9,38 +9,25 @@
 #include <cctype>
 #include <sstream>
 
-
 namespace fs = std::filesystem;
 
 
 
-bool NoteManager::createNote(const std::string& title, const std::string& content){
-    if(!checkTitle(title)) return false;
-    if(isTitleExists(title)){
-        std::cerr << "Loi: Tieu de da ton tai\n";
-        return false;
-    }
-    std::string dir = "vault/notes";
-    std::filesystem::create_directories(dir);
+bool NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
+    int i = findIndex(oldTitle);
+    if(i == -1) return false;
+    if(!checkTitle(newTitle)) return false;
 
-    std::string filePath = dir + "/" + title + ".md";
-    std::ofstream outFile(filePath);
-
-    if(!outFile){
-        std::cerr << "Loi: Khong the tao file ghi chu tai " << filePath << std::endl;
+    // Cho phep doi chu cai hoa/thuong voi chinh no
+    int j = findIndex(newTitle);
+    if(j != -1 && j != i){
+        std::cerr << "Loi: Tieu de moi da ton tai\n";
         return false;
     }
 
-    outFile << content;
-    outFile.close();
-    std::cout << "Da luu ghi chu thanh cong vao " << filePath << std::endl;
-
-    if(count >= capacity){
-        resize();
-    }
-
-    notesArray[count] = Note(title, content, getCurrentTime());
-    count++;
+    fs::rename(makePath(notesArray[i].getTitle()), makePath(newTitle));
+    notesArray[i].setContent(newTitle);
+    notesArray[i].setLastModified(getCurrentTime());
     return true;
+}
 
-}    
