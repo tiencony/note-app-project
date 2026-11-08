@@ -4,6 +4,7 @@
 #include "Note.h"
 #include <string>
 #include <vector>
+#include <map>
 
 struct SearchResult {
     std::string title;
@@ -45,9 +46,13 @@ public:
     bool renameNote(const std::string& oldTitle, const std::string& newTitle);
 
     std::vector<SearchResult> searchContent(const std::string& keyword) const;
-    
     std::vector<std::string> searchTitle(const std::string& keyword) const;
 
+
+
+
+    std::vector<std::string> listByTag(const std::string& tag) const;
+    std::map<std::string, int> tagCounts() const;
 
 };
 

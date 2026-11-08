@@ -94,6 +94,8 @@ static void printMenu(){
               << "6. Sua noi dung ghi chu\n"
               << "7. Doi ten ghi chu\n"
               << "8. Xoa ghi chu\n"
+              << "9. Hien cac danh sach theo Tag\n"
+              << "10. Liet ke cac tag\n"
               << "0. Thoat\n"
               << "Chon: ";
 }
@@ -160,11 +162,21 @@ static void runMenu(){
                 else std::cout << "Xoa that bai.\n";
                 break;
             }
-            case 9:{
-                manager.loadNotesFromDisk();
+            case 9: {
+                auto results = manager.listByTag(readLine("Tag: "));
+                if(results.empty()) std::cout << "Khong co ghi chu nao.\n";
+                for(const auto& t : results) std::cout << "- " << t << "\n";
                 break;
             }
 
+            case 10: {
+                auto counts = manager.tagCounts();
+                if(counts.empty()) std::cout << "Chua co tag nao.\n";
+                for(const auto& item : counts){
+                    std::cout << "#" << item.first << " (" << item.second << ")\n";
+                }
+                break;
+            }
             case 0:
                 std::cout << "Tam biet!\n";
                 break;

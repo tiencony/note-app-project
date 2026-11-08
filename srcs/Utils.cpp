@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <set>
+
 
 namespace fs = std::filesystem;
 
@@ -90,4 +92,56 @@ bool readFileToString(const fs::path& path, std::string& out){
     buffer << inFile.rdbuf();
     out = buffer.str();
     return true;
+}
+
+
+
+
+
+
+std::set<std::string> extractTags(const std::string& content){
+    std::set<std::string> tags;
+    const std::size_t len = content.size();
+
+    for(std::size_t i = 0; i < len; i++){
+        if(content[i] != '#') continue;
+
+        // check dau chuoi or sau khoang trang
+        if(i != 0 && !std::isspace(static_cast<unsigned char>(content[i - 1]))){
+            continue;
+        }
+
+        // check sau # phai la chu hoac so
+        std::size_t j = i + 1;
+        if(j >= len || !std::isalnum(static_cast<unsigned char>(content[j]))){
+            continue;
+        }
+
+        std::string tag;
+        while(j < len){
+            unsigned char ch = content[j];
+            if(std::isalnum(ch) || ch == '_' || ch == '-'){
+                tag += static_cast<char>(std::tolower(ch));
+                j++;
+            }else break;
+        }
+        tags.insert(tag);
+        i = j - 1;
+    }
+    return tags;
+}
+
+
+
+
+std::string normalizeTag(const std::string& tag){
+    if(tag.empty()) return "";
+
+    auto it = tag.begin();
+    if(*it == '#') it++;
+    std::string resTag = "";
+    for(; it != tag.end(); it++){
+        resTag += static_cast<char>(std::tolower(static_cast<unsigned char>(*it)));
+    }
+    return resTag;
 }

@@ -247,3 +247,27 @@ std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword)
 }
 
 
+std::vector<std::string> NoteManager::listByTag(const std::string& tag) const{
+    std::vector<std::string> results;
+    std::string normalized_tag = normalizeTag(tag);
+    
+    for(int i = 0; i < count; i++){
+        std::set<std::string> tags = extractTags(notesArray[i].getContent());
+        if(tags.count(normalized_tag) > 0){
+            results.push_back(notesArray[i].getTitle());
+
+        }
+    }
+    return results;
+}
+
+std::map<std::string, int> NoteManager::tagCounts() const{
+    std::map<std::string, int> counts;
+    for(int i = 0; i < count; i++){
+        std::set<std::string> tags = extractTags(notesArray[i].getContent());
+        for(const std::string&tag : tags){
+            counts[tag]++;
+        }
+    }
+    return counts;
+}
