@@ -4,7 +4,24 @@
 #include <set>
 #include "../headers/NoteManager.h"
 #include "../headers/Utils.h"
+#include <filesystem>
+
+static const std::string NOTES_DIR = "vault/notes";
+namespace fs = std::filesystem;
 // ---------- Tien ich nhap lieu ----------
+static void cleanupTestFiles(){
+    std::error_code ec;
+    std::vector<fs::path> toDelete;
+    for(const auto& e : fs::directory_iterator(NOTES_DIR, ec)){
+        if(e.path().filename().string().rfind("zz_test", 0) == 0){
+            toDelete.push_back(e.path());
+        }
+    }
+    for(const auto& p : toDelete) fs::remove(p, ec);
+
+}
+
+
 static std::string readLine(const std::string& prompt){
     std::cout << prompt;
     std::string s;
@@ -31,6 +48,7 @@ static void check(bool condition, const std::string& name){
 }
 
 static void testTags(){
+    
     using Tags = std::set<std::string>;
 
     check(extractTags("hoc #cpp va #Very-important")
@@ -85,7 +103,7 @@ static void testLinks(){
 }
 
 static void testBacklinks(){
-    NoteManager b(2);
+    NoteManager b;
     b.createNote("zz_test_L1", "xem [[zz_test_L2]]");
     b.createNote("zz_test_L2", "khong co link nao");
     b.createNote("zz_test_L3", "[[ZZ_TEST_L2]] va [[zz_test_L2]]");
@@ -111,10 +129,11 @@ static void testBacklinks(){
 
 
 static int runAutoTest(){
+    cleanupTestFiles();
     std::cout << "=== TEST TU DONG (tao file zz_test_* trong vault/notes, cuoi se xoa) ===\n";
     testLinks();
     testTags();
-    NoteManager m(2);   // capacity = 2 de test resize o note thu 3
+    NoteManager m;   // capacity = 2 de test resize o note thu 3
 
     // Tao + resize
     check(m.createNote("zz_test_A", "hoc con tro C++"), "Tao note A");
@@ -149,7 +168,7 @@ static int runAutoTest(){
     check(m.renameNote("zz_test_C", "ZZ_TEST_C"),   "Cho phep doi hoa/thuong chinh no");
 
     // Doc lai tu o cung bang doi tuong moi
-    NoteManager m2(2);
+    NoteManager m2;
     m2.loadNotesFromDisk();
     check(m2.searchTitle("zz_test_").size() == 3, "Load lai tu dia thay du 3 note");
     check(m2.searchContent("hoan toan").size() == 1, "Noi dung sua da duoc luu xuong dia");
@@ -163,7 +182,7 @@ static int runAutoTest(){
     
     // Test backlinks
     testBacklinks();
-
+    cleanupTestFiles();
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";
     return failed == 0 ? 0 : 1;
@@ -184,12 +203,13 @@ static void printMenu(){
               << "8. Xoa ghi chu\n"
               << "9. Hien cac danh sach theo Tag\n"
               << "10. Liet ke cac tag\n"
+              << "11. Xem backlinks cua ghi chu\n"
               << "0. Thoat\n"
               << "Chon: ";
 }
 
 static void runMenu(){
-    NoteManager manager(2);
+    NoteManager manager;
     manager.loadNotesFromDisk();
 
     int choice = -1;
@@ -265,6 +285,12 @@ static void runMenu(){
                 }
                 break;
             }
+            case 11: {
+                auto results = manager.backlinks(readLine("Tieu de: "));
+                if(results.empty()) std::cout << "Khong co ghi chu nao tro toi.\n";
+                for(const auto& t : results) std::cout << "- " << t << "\n";
+                break;
+            }       
             case 0:
                 std::cout << "Tam biet!\n";
                 break;

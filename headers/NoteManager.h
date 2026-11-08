@@ -15,11 +15,13 @@ struct SearchResult {
 
 class NoteManager{
 private:
-    Note *notesArray;
-    int capacity;
-    int count;
+    // Note *notesArray;
+    // int capacity;
+    std::vector<Note> notesArray;
 
-    void resize();
+
+    // void resize();
+
     std::string makePath(const std::string &title) const;
     bool isTitleExists(const std::string &title) const;
     int findIndex(const std::string &title) const;
@@ -27,14 +29,13 @@ private:
 
 
 public:
-    NoteManager(int initialCapacity = 10);
-    ~NoteManager();
+    NoteManager() = default;
+
 
     bool createNote(const std::string &title = "Untitled", const std::string &content = "No content");
     void listNotes() const;
     bool checkTitle(const std::string &input) const;
-    NoteManager(const NoteManager &) = delete;
-    NoteManager &operator=(const NoteManager &) = delete;
+
 
     void loadNotesFromDisk();
 
@@ -57,7 +58,7 @@ public:
 
     //backlinks
     std::vector<std::string> backlinks(const std::string& title) const;
-
+    std::vector<std::string> brokenLinks(const std::string& title) const;
 };
 
 #endif

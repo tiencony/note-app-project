@@ -1,1 +1,0 @@
-[[ZZ_TEST_L2]] va [[zz_test_L2]]

@@ -25,7 +25,10 @@ std::string getCurrentTime(){
 }
 
 std::string getFileTime(const fs::path& p){
-    auto ftime = fs::last_write_time(p);
+    std::error_code ec;
+    auto ftime = fs::last_write_time(p, ec);
+    if(ec) return "Unknown";
+
     auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
         ftime - fs::file_time_type::clock::now() + std::chrono::system_clock::now());
     return formatTime(std::chrono::system_clock::to_time_t(sctp));
@@ -145,6 +148,7 @@ std::string normalizeTag(const std::string& tag){
     for(; it != tag.end(); it++){
         resTag += static_cast<char>(std::tolower(static_cast<unsigned char>(*it)));
     }
+
     return resTag;
 }
 

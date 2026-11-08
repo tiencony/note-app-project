@@ -16,28 +16,6 @@ std::string NoteManager::makePath(const std::string &title) const{
     return NOTES_DIR + "/" + title + ".md";
 }
 
-NoteManager::NoteManager(int initialCapacity){
-    capacity = (initialCapacity > 0) ? initialCapacity : 10;
-    count = 0;
-    notesArray = new Note[capacity];
-}
-
-NoteManager::~NoteManager(){
-    delete[] notesArray;
-}
-
-void NoteManager::resize(){
-    int newCapacity = capacity * 2;
-    Note *temp = new Note[newCapacity];
-
-    for (int i = 0; i < count; i++){
-        temp[i] = notesArray[i];
-    }
-
-    delete[] notesArray;
-    notesArray = temp;
-    capacity = newCapacity;
-}
 
 
 
@@ -86,19 +64,16 @@ bool NoteManager::createNote(const std::string &title, const std::string &conten
     outFile.close();
     std::cout << "Da luu ghi chu thanh cong vao " << filePath << std::endl;
 
-    if (count >= capacity){
-        resize();
-    }
 
-    notesArray[count] = Note(title, content, getCurrentTime());
-    count++;
+
+    notesArray.push_back(Note(title, content, getCurrentTime()));
     return true;
 }
 
 void NoteManager::listNotes() const{
-    if (count == 0) return;
-    for (int i = 0; i < count; i++){
-        notesArray[i].displayInfo();
+    if (notesArray.empty()) return;
+    for(const Note& note : notesArray){
+        note.displayInfo();
     }
 }
 
@@ -129,7 +104,7 @@ bool NoteManager::isTitleExists(const std::string &title) const{
 
 void NoteManager::loadNotesFromDisk(){
     fs::create_directories(NOTES_DIR);
-    count = 0;
+
 
     for (const auto &entry : fs::directory_iterator(NOTES_DIR)){
         if (!entry.is_regular_file() || entry.path().extension() != ".md") continue;
@@ -137,11 +112,11 @@ void NoteManager::loadNotesFromDisk(){
         std::string content;
         if(!readFileToString(entry.path(), content)) continue;
         
-        if(count >= capacity) resize();
-        notesArray[count] = Note(entry.path().stem().string(), content, getFileTime(entry.path()));
-        count++;
+
+        notesArray.push_back(Note(entry.path().stem().string(), content, getFileTime(entry.path())));
+
     }
-    std::cout << "Da tai " << count << " ghi chu.\n";
+    std::cout << "Da tai " << notesArray.size() << " ghi chu.\n";
 }
 
 
@@ -158,17 +133,14 @@ bool NoteManager::deleteNote(const std::string &title){
     }
     
     // Xoa khoi RAM
-    for (int j = i; j < count - 1; j++){
-        notesArray[j] = notesArray[j + 1];
-    }
-    count--;
+    notesArray.erase(notesArray.begin() + i);
+
     return true;
 }
 
-int NoteManager::findIndex(const std::string &title) const{
-    for (int i = 0; i < count; i++){
-        if (equalsIgnoreCase(title, notesArray[i].getTitle()))
-            return i;
+int NoteManager::findIndex(const std::string& title) const{
+    for(std::size_t i = 0; i < notesArray.size(); i++){
+        if(equalsIgnoreCase(title, notesArray[i].getTitle())) return static_cast<int>(i);
     }
     return -1;
 }
@@ -177,7 +149,9 @@ bool NoteManager::openNote(const std::string& title){
     int i = findIndex(title);
     if(i == -1) return false;
 
-    if(!reloadNote(i)) return false;
+    if(!reloadNote(i)){
+        std::cout << "(Khong doc lai duoc file, hien ban luu trong bo nho)\n";
+    }
     notesArray[i].displayNote();
     return true;
 }
@@ -228,9 +202,10 @@ bool NoteManager::renameNote(const std::string& oldTitle, const std::string& new
 
 std::vector<std::string> NoteManager::searchTitle(const std::string& keyword) const{
     std::vector<std::string> results;
-    for(int i = 0; i < count; i++){
-        if(containsIgnoreCase(notesArray[i].getTitle(), keyword)){
-            results.push_back(notesArray[i].getTitle());
+    if(keyword.empty()) return results;
+    for(const Note& note : notesArray){
+        if(containsIgnoreCase(note.getTitle(), keyword)){
+            results.push_back(note.getTitle());
         }
     }
     return results;
@@ -241,13 +216,13 @@ std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword)
     std::vector<SearchResult> results;
     if(keyword.empty()) return results;
     
-    for(int i = 0; i < count; i++){
-        const std::string& content = notesArray[i].getContent();
+    for(const Note& note : notesArray){
+        const std::string& content = note.getContent();
         std::size_t pos = findIgnoreCase(content, keyword);
 
         if(pos != std::string::npos){
             results.push_back({
-                    notesArray[i].getTitle(),
+                    note.getTitle(),
                     makeSnippet(content, pos, keyword.size())
             });
         }
@@ -261,10 +236,10 @@ std::vector<std::string> NoteManager::listByTag(const std::string& tag) const{
     std::vector<std::string> results;
     std::string normalized_tag = normalizeTag(tag);
     
-    for(int i = 0; i < count; i++){
-        std::set<std::string> tags = extractTags(notesArray[i].getContent());
+    for(const Note& note : notesArray){
+        std::set<std::string> tags = extractTags(note.getContent());
         if(tags.count(normalized_tag) > 0){
-            results.push_back(notesArray[i].getTitle());
+            results.push_back(note.getTitle());
 
         }
     }
@@ -273,8 +248,8 @@ std::vector<std::string> NoteManager::listByTag(const std::string& tag) const{
 
 std::map<std::string, int> NoteManager::tagCounts() const{
     std::map<std::string, int> counts;
-    for(int i = 0; i < count; i++){
-        std::set<std::string> tags = extractTags(notesArray[i].getContent());
+    for(const Note& note : notesArray){
+        std::set<std::string> tags = extractTags(note.getContent());
         for(const std::string&tag : tags){
             counts[tag]++;
         }
@@ -289,13 +264,13 @@ std::map<std::string, int> NoteManager::tagCounts() const{
 khi sua file bang Notepath (can sua lai sau)*/
 std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
     std::vector<std::string> results;
-    for(int i = 0; i < count; i++){
-        if(equalsIgnoreCase(notesArray[i].getTitle(), title)) continue;
+    for(const Note& note : notesArray){
+        if(equalsIgnoreCase(note.getTitle(), title)) continue;
 
-        std::set<std::string> links = extractLinks(notesArray[i].getContent());
+        std::set<std::string> links = extractLinks(note.getContent());
         for(const std::string& link : links){
             if(equalsIgnoreCase(link, title)){
-                results.push_back(notesArray[i].getTitle());
+                results.push_back(note.getTitle());
                 break;
             }
         }

@@ -4,9 +4,8 @@
 #include <string>
 #include <filesystem>
 #include <set>
+#include <ctime> 
 
-
-namespace fs = std::filesystem;
 
 std::string getCurrentTime();
 std::string getFileTime(const std::filesystem::path& p);
@@ -21,7 +20,7 @@ std::string makeSnippet(const std::string& text, std::size_t pos, std::size_t ke
 
 
 // Doc nd tu disk va luu vao 1 string
-bool readFileToString(const fs::path& path, std::string& out);
+bool readFileToString(const std::filesystem::path& path, std::string& out);
 
 std::set<std::string> extractTags(const std::string& content);
 std::string normalizeTag(const std::string& tag);
