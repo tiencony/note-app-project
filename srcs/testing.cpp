@@ -12,26 +12,24 @@
 #include <map>
 
 namespace fs = std::filesystem;
+using Tags = std::set<std::string>;
 
-std::map<std::string, int> NoteManager::tagCounts() const{
-    std::map<std::string, int> counts;
+
+
+/* Chua xu ly vc doc tu RAM nen co the bi sai 
+khi sua file bang Notepath (can sua lai sau)*/
+std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
+    std::vector<std::string> results;
     for(int i = 0; i < count; i++){
-        std::set<std::string> tags = extractTags(notesArray[i].getContent());
-        for(const std::string&tag : tags){
-            counts[tag]++;
+        if(equalsIgnoreCase(notesArray[i].getTitle(), title)) continue;
+
+        std::set<std::string> links = extractLinks(notesArray[i].getContent());
+        for(const std::string& link : links){
+            if(equalsIgnoreCase(link, title)){
+                results.push_back(notesArray[i].getTitle());
+                break;
+            }
         }
     }
-    return counts;
-}
-
-
-
-
-
-
-
-int main(){
-    for(const auto& t : extractTags("hoc #CPP va #ooP1rw, #CPP\n# Tieu de\nabc#def")){
-        std::cout << normalizeTag(t) << std::endl;
-    }
+    return results;
 }

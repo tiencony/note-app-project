@@ -96,7 +96,9 @@ bool readFileToString(const fs::path& path, std::string& out){
 
 
 
-
+static bool canPrecedeTag(char c){
+    return std::isspace(static_cast<unsigned char>(c)) || c == '(' || c == '"';
+}
 
 
 std::set<std::string> extractTags(const std::string& content){
@@ -106,8 +108,8 @@ std::set<std::string> extractTags(const std::string& content){
     for(std::size_t i = 0; i < len; i++){
         if(content[i] != '#') continue;
 
-        // check dau chuoi or sau khoang trang
-        if(i != 0 && !std::isspace(static_cast<unsigned char>(content[i - 1]))){
+        
+        if(i != 0 && !canPrecedeTag(content[i - 1])){
             continue;
         }
 
@@ -144,4 +146,37 @@ std::string normalizeTag(const std::string& tag){
         resTag += static_cast<char>(std::tolower(static_cast<unsigned char>(*it)));
     }
     return resTag;
+}
+
+
+std::string trimSpaces(const std::string& s){
+    std::size_t begin = s.find_first_not_of(' ');
+    if(begin == std::string::npos) return "";
+    std::size_t end = s.find_last_not_of(' ');
+    return s.substr(begin, end - begin + 1);
+}
+
+std::set<std::string> extractLinks(const std::string& content){
+    std::set<std::string> links;
+    std::size_t pos = 0;
+
+    while(true){
+        std::size_t open = content.find("[[", pos);
+        if(open == std::string::npos) break;
+
+        std::size_t close = content.find("]]", open + 2);
+        if(close == std::string::npos) break;
+
+        std::string link = content.substr(open + 2, close - (open + 2));
+
+        if(link.find_first_of("\n[") != std::string::npos){
+            pos = open + 1;
+            continue;
+        }
+        pos = close + 2;
+        link = trimSpaces(link);
+        if(link.empty()) continue;
+        links.insert(link);
+    }
+    return links;
 }

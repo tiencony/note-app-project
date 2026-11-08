@@ -45,14 +45,18 @@ public:
     bool editNote(const std::string &title, const std::string &newContent);
     bool renameNote(const std::string& oldTitle, const std::string& newTitle);
 
+
+    //search
     std::vector<SearchResult> searchContent(const std::string& keyword) const;
     std::vector<std::string> searchTitle(const std::string& keyword) const;
 
 
-
-
+    //tag
     std::vector<std::string> listByTag(const std::string& tag) const;
     std::map<std::string, int> tagCounts() const;
+
+    //backlinks
+    std::vector<std::string> backlinks(const std::string& title) const;
 
 };
 

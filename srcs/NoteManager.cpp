@@ -69,6 +69,12 @@ bool NoteManager::createNote(const std::string &title, const std::string &conten
 
     fs::create_directories(NOTES_DIR);
     std::string filePath = makePath(title);
+
+    std::error_code ec;
+    if (fs::exists(filePath, ec)) {
+        std::cerr << "Loi: File da ton tai tren dia (co the ban vua tao ngoai chuong trinh)\n";
+        return false;
+    }
     std::ofstream outFile(filePath);
 
     if (!outFile){
@@ -144,10 +150,14 @@ bool NoteManager::deleteNote(const std::string &title){
     if (i == -1)
         return false;
 
-    if (!fs::remove(makePath(notesArray[i].getTitle()))){
-        std::cerr << "Khong the xoa file: " << title << std::endl;
+    std::error_code ec;
+    fs::remove(makePath(notesArray[i].getTitle()), ec);
+    if (ec) {   // loi that su (bi khoa, khong co quyen...)
+        std::cerr << "Khong the xoa file: " << ec.message() << std::endl;
         return false;
     }
+    
+    // Xoa khoi RAM
     for (int j = i; j < count - 1; j++){
         notesArray[j] = notesArray[j + 1];
     }
@@ -167,7 +177,7 @@ bool NoteManager::openNote(const std::string& title){
     int i = findIndex(title);
     if(i == -1) return false;
 
-    reloadNote(i);
+    if(!reloadNote(i)) return false;
     notesArray[i].displayNote();
     return true;
 }
@@ -270,4 +280,25 @@ std::map<std::string, int> NoteManager::tagCounts() const{
         }
     }
     return counts;
+}
+
+
+
+
+/* Chua xu ly vc doc tu RAM nen co the bi sai 
+khi sua file bang Notepath (can sua lai sau)*/
+std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
+    std::vector<std::string> results;
+    for(int i = 0; i < count; i++){
+        if(equalsIgnoreCase(notesArray[i].getTitle(), title)) continue;
+
+        std::set<std::string> links = extractLinks(notesArray[i].getContent());
+        for(const std::string& link : links){
+            if(equalsIgnoreCase(link, title)){
+                results.push_back(notesArray[i].getTitle());
+                break;
+            }
+        }
+    }
+    return results;
 }

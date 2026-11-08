@@ -1,8 +1,9 @@
 #include <iostream>
 #include <limits>
 #include <string>
+#include <set>
 #include "../headers/NoteManager.h"
-
+#include "../headers/Utils.h"
 // ---------- Tien ich nhap lieu ----------
 static std::string readLine(const std::string& prompt){
     std::cout << prompt;
@@ -12,13 +13,14 @@ static std::string readLine(const std::string& prompt){
 }
 
 static std::string readContent(){
-    std::cout << "Noi dung (go dong rong de ket thuc):\n";
+    std::cout << "Noi dung (go :done tren mot dong rieng de ket thuc):\n";
     std::string content, line;
-    while(std::getline(std::cin, line) && !line.empty()){
+    while(std::getline(std::cin, line) && line != ":done"){
         content += line + "\n";
     }
     return content;
 }
+
 
 // ---------- Test tu dong ----------
 static int failed = 0;
@@ -28,9 +30,90 @@ static void check(bool condition, const std::string& name){
     if(!condition) failed++;
 }
 
+static void testTags(){
+    using Tags = std::set<std::string>;
+
+    check(extractTags("hoc #cpp va #Very-important")
+              == Tags{"cpp", "very-important"},
+          "extractTags: lay duoc 2 tag, doi chu thuong");
+
+    check(extractTags("# Tieu de\nnoi dung").empty(),
+          "extractTags: heading '# ' khong phai tag");
+
+    check(extractTags("abc#def").empty(),
+          "extractTags: '#' dinh lien chu thi khong phai tag");
+
+    check(extractTags("#start\nxuong dong\n#nl")
+              == Tags{"start", "nl"},
+          "extractTags: tag o dau chuoi va sau xuong dong");
+
+    check(extractTags("#cpp #CPP #Cpp").size() == 1,
+          "extractTags: trung tag chi tinh 1");
+    check(extractTags("xem (#cpp) nhe") == Tags{"cpp"}, "extractTags: lay duoc 1 tag");
+    check(normalizeTag("#CPP") == "cpp", "normalizeTag: bo # va doi chu thuong");
+    check(normalizeTag("Cpp") == "cpp",  "normalizeTag: khong co # van dung");
+
+    check(extractTags("xem (#cpp) nhe") == Tags{"cpp"},
+        "extractTags: tag trong ngoac don");
+    check(extractTags("noi \"#cpp\" nhe") == Tags{"cpp"},
+        "extractTags: tag trong ngoac kep");
+    check(extractTags("http://a.com/page#section").empty(),
+        "extractTags: neo URL khong phai tag");
+    check(extractTags("[[Note#Heading]]").empty(),
+        "extractTags: heading trong link khong phai tag");
+    }
+
+static void testLinks(){
+    using Set = std::set<std::string>;
+
+    check(extractLinks("xem [[Note A]] va [[Note B]]") == Set{"Note A", "Note B"},
+          "extractLinks: lay duoc 2 link");
+    check(extractLinks("[[A]] [[A]]").size() == 1,
+          "extractLinks: link trung chi tinh 1");
+    check(extractLinks("[[ Note ]]") == Set{"Note"},
+          "extractLinks: cat khoang trang hai dau");
+    check(extractLinks("[[]] [[ ]]").empty(),
+          "extractLinks: ten rong bi bo qua");
+    check(extractLinks("[[chua dong").empty(),
+          "extractLinks: thieu ]] thi khong co link");
+    check(extractLinks("[[a\nb]]").empty(),
+          "extractLinks: ten co xuong dong la link hong");
+    check(extractLinks("[[a [[b]]") == Set{"b"},
+          "extractLinks: link hong khong nuot link dung");
+    check(extractLinks("[ [x] ]").empty(),
+          "extractLinks: ngoac don khong phai link");
+}
+
+static void testBacklinks(){
+    NoteManager b(2);
+    b.createNote("zz_test_L1", "xem [[zz_test_L2]]");
+    b.createNote("zz_test_L2", "khong co link nao");
+    b.createNote("zz_test_L3", "[[ZZ_TEST_L2]] va [[zz_test_L2]]");
+    b.createNote("zz_test_L4", "[[zz_test_L4]] tu tro vao minh");
+
+    check(b.backlinks("zz_test_L2").size() == 2,
+          "backlinks: L1 va L3 tro toi L2 (L3 chi tinh 1 lan)");
+    check(b.backlinks("zz_test_l2").size() == 2,
+          "backlinks: khong phan biet hoa/thuong");
+    check(b.backlinks("zz_test_L1").empty(),
+          "backlinks: khong ai tro toi L1");
+    check(b.backlinks("zz_test_L4").empty(),
+          "backlinks: link tro vao chinh no khong tinh");
+    check(b.backlinks("khong_ton_tai").empty(),
+          "backlinks: note khong ton tai thi rong");
+
+    // don dep
+    // b.deleteNote("zz_test_L1");
+    // b.deleteNote("zz_test_L2");
+    // b.deleteNote("zz_test_L3");
+    // b.deleteNote("zz_test_L4");
+}
+
+
 static int runAutoTest(){
     std::cout << "=== TEST TU DONG (tao file zz_test_* trong vault/notes, cuoi se xoa) ===\n";
-
+    testLinks();
+    testTags();
     NoteManager m(2);   // capacity = 2 de test resize o note thu 3
 
     // Tao + resize
@@ -77,10 +160,15 @@ static int runAutoTest(){
     check(m.deleteNote("zz_test_B2"), "Xoa B2 (phan tu cuoi)");
     check(!m.deleteNote("zz_test_A"), "Xoa lai note da xoa tra ve false");
     check(m.searchTitle("zz_test_").empty(), "Khong con note nao");
+    
+    // Test backlinks
+    testBacklinks();
 
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";
     return failed == 0 ? 0 : 1;
+    
+    
 }
 
 // ---------- Menu tuong tac ----------
