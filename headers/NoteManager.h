@@ -22,6 +22,8 @@ private:
     std::string makePath(const std::string &title) const;
     bool isTitleExists(const std::string &title) const;
     int findIndex(const std::string &title) const;
+    bool reloadNote(int i);
+
 
 public:
     NoteManager(int initialCapacity = 10);
@@ -36,13 +38,15 @@ public:
     void loadNotesFromDisk();
 
     bool deleteNote(const std::string &title);
-    bool openNote(const std::string &title) const;
+    bool openNote(const std::string &title);
 
     
     bool editNote(const std::string &title, const std::string &newContent);
     bool renameNote(const std::string& oldTitle, const std::string& newTitle);
 
     std::vector<SearchResult> searchContent(const std::string& keyword) const;
+    
+    std::vector<std::string> searchTitle(const std::string& keyword) const;
 
 
 };

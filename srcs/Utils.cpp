@@ -6,7 +6,7 @@
 #include <cctype>
 #include <algorithm>
 #include <filesystem>
-
+#include <fstream>
 
 namespace fs = std::filesystem;
 
@@ -80,4 +80,14 @@ std::string makeSnippet(const std::string& text, std::size_t pos, std::size_t ke
     if (end < text.size()) snippet += "...";
 
     return snippet;
+}
+
+
+bool readFileToString(const fs::path& path, std::string& out){
+    std::ifstream inFile(path);
+    if(!inFile) return false;
+    std::stringstream buffer;
+    buffer << inFile.rdbuf();
+    out = buffer.str();
+    return true;
 }

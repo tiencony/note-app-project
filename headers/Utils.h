@@ -4,6 +4,8 @@
 #include <string>
 #include <filesystem>
 
+namespace fs = std::filesystem;
+
 std::string getCurrentTime();
 std::string getFileTime(const std::filesystem::path& p);
 std::string formatTime(std::time_t t);
@@ -15,6 +17,9 @@ bool equalsIgnoreCase(const std::string& str1, const std::string& str2);
 
 std::string makeSnippet(const std::string& text, std::size_t pos, std::size_t keywordLen);
 
+
+// Doc nd tu disk va luu vao 1 string
+bool readFileToString(const fs::path& path, std::string& out);
 
 
 

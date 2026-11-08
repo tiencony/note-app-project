@@ -39,6 +39,27 @@ void NoteManager::resize(){
     capacity = newCapacity;
 }
 
+
+
+bool NoteManager::reloadNote(int i){
+    std::string path = makePath(notesArray[i].getTitle());
+    std::string content;
+    if(!readFileToString(path, content)){
+        std::cerr << "Khong the doc file: " << path << std::endl;
+        return false;
+    }
+    notesArray[i].setContent(content);
+    notesArray[i].setLastModified(getFileTime(path));
+    return true;
+
+}
+
+
+
+
+
+
+
 bool NoteManager::createNote(const std::string &title, const std::string &content){
     if (!checkTitle(title)) return false;
     if (isTitleExists(title)){
@@ -98,6 +119,8 @@ bool NoteManager::isTitleExists(const std::string &title) const{
     return findIndex(title) != -1;
 }
 
+
+
 void NoteManager::loadNotesFromDisk(){
     fs::create_directories(NOTES_DIR);
     count = 0;
@@ -105,25 +128,16 @@ void NoteManager::loadNotesFromDisk(){
     for (const auto &entry : fs::directory_iterator(NOTES_DIR)){
         if (!entry.is_regular_file() || entry.path().extension() != ".md") continue;
 
-        std::ifstream inFile(entry.path());
-        if (!inFile){
-            std::cerr << "Khong the mo file: " << entry.path() << std::endl;
-            continue;
-        }
-
-        std::stringstream buffer;
-        buffer << inFile.rdbuf();
-
-        if (count >= capacity) resize();
-
-        notesArray[count] = Note(entry.path().stem().string(),
-                                 buffer.str(),
-                                 getFileTime(entry.path()));
-
+        std::string content;
+        if(!readFileToString(entry.path(), content)) continue;
+        
+        if(count >= capacity) resize();
+        notesArray[count] = Note(entry.path().stem().string(), content, getFileTime(entry.path()));
         count++;
     }
     std::cout << "Da tai " << count << " ghi chu.\n";
 }
+
 
 bool NoteManager::deleteNote(const std::string &title){
     int i = findIndex(title);
@@ -149,13 +163,16 @@ int NoteManager::findIndex(const std::string &title) const{
     return -1;
 }
 
-bool NoteManager::openNote(const std::string &title) const{
+bool NoteManager::openNote(const std::string& title){
     int i = findIndex(title);
-    if (i == -1) return false;
+    if(i == -1) return false;
 
+    reloadNote(i);
     notesArray[i].displayNote();
     return true;
 }
+
+
 
 bool NoteManager::editNote(const std::string &title, const std::string &newContent){
     int i = findIndex(title);
@@ -199,6 +216,16 @@ bool NoteManager::renameNote(const std::string& oldTitle, const std::string& new
 }
 
 
+std::vector<std::string> NoteManager::searchTitle(const std::string& keyword) const{
+    std::vector<std::string> results;
+    for(int i = 0; i < count; i++){
+        if(containsIgnoreCase(notesArray[i].getTitle(), keyword)){
+            results.push_back(notesArray[i].getTitle());
+        }
+    }
+    return results;
+}
+
 
 std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword) const{
     std::vector<SearchResult> results;
@@ -218,3 +245,5 @@ std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword)
 
     return results;
 }
+
+
