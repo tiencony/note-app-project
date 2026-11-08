@@ -126,7 +126,30 @@ static void testBacklinks(){
     // b.deleteNote("zz_test_L3");
     // b.deleteNote("zz_test_L4");
 }
+static void testBrokenLinks(){
+    NoteManager b;
+    check(b.createNote("zz_test_L1", "[[zz_test_L2]] va [[zz_test_khong_co]]"),
+          "brokenLinks: tao L1");
+    check(b.createNote("zz_test_L2", "noi dung"),
+          "brokenLinks: tao L2");
 
+    auto broken = b.brokenLinks();
+    std::cout << "  [debug] so link hong: " << broken.size() << "\n";
+    for(const auto& x : broken)
+        std::cout << "  [debug] " << x.from << " -> " << x.target << "\n";
+
+    check(broken.size() == 1, "brokenLinks: chi 1 link hong");
+    check(!broken.empty() && broken[0].from == "zz_test_L1"
+                          && broken[0].target == "zz_test_khong_co",
+          "brokenLinks: dung note chua link va dung ten hong");
+
+    b.deleteNote("zz_test_L2");
+    check(b.brokenLinks().size() == 2,
+          "brokenLinks: xoa L2 thi link toi L2 thanh hong");
+
+    b.deleteNote("zz_test_L1");   // don dep
+    check(b.brokenLinks().empty(), "brokenLinks: het note thi het link hong");
+}
 
 static int runAutoTest(){
     cleanupTestFiles();
@@ -182,6 +205,14 @@ static int runAutoTest(){
     
     // Test backlinks
     testBacklinks();
+    cleanupTestFiles();
+    
+    testBrokenLinks();
+    NoteManager r;
+    r.createNote("zz_test_R", "x");
+    r.loadNotesFromDisk();    
+    check(r.searchTitle("zz_test_R").size() == 1,
+        "loadNotesFromDisk: tai lai khong nhan doi note");
     cleanupTestFiles();
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";

@@ -11,7 +11,10 @@ struct SearchResult {
     std::string snippet;
 };
 
-
+struct BrokenLink{
+    std::string from;     // note chua link
+    std::string target;   // ten ma link tro toi (khong ton tai)
+};
 
 class NoteManager{
 private:
@@ -58,7 +61,7 @@ public:
 
     //backlinks
     std::vector<std::string> backlinks(const std::string& title) const;
-    std::vector<std::string> brokenLinks(const std::string& title) const;
+    std::vector<BrokenLink> brokenLinks() const;
 };
 
 #endif

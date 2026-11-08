@@ -104,7 +104,7 @@ bool NoteManager::isTitleExists(const std::string &title) const{
 
 void NoteManager::loadNotesFromDisk(){
     fs::create_directories(NOTES_DIR);
-
+    notesArray.clear();
 
     for (const auto &entry : fs::directory_iterator(NOTES_DIR)){
         if (!entry.is_regular_file() || entry.path().extension() != ".md") continue;
@@ -272,6 +272,19 @@ std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
             if(equalsIgnoreCase(link, title)){
                 results.push_back(note.getTitle());
                 break;
+            }
+        }
+    }
+    return results;
+}
+
+
+std::vector<BrokenLink> NoteManager::brokenLinks() const{
+    std::vector<BrokenLink> results;
+    for(const Note& note : notesArray){
+        for(const std::string& link : extractLinks(note.getContent())){   // getContent, khong phai getTitle
+            if(!isTitleExists(link)){
+                results.push_back({note.getTitle(), link});
             }
         }
     }
