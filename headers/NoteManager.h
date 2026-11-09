@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <set>
+#include <unordered_map>
 
 struct SearchResult {
     std::string title;
@@ -18,17 +20,21 @@ struct BrokenLink{
 
 class NoteManager{
 private:
-    // Note *notesArray;
-    // int capacity;
     std::vector<Note> notesArray;
-
-
-    // void resize();
 
     std::string makePath(const std::string &title) const;
     bool isTitleExists(const std::string &title) const;
     int findIndex(const std::string &title) const;
     bool reloadNote(int i);
+    
+    //Phan link
+    mutable bool linkIndexDirty = true;
+    mutable std::unordered_map<std::string, std::string> titleByKey; /*(Key): tieu de da chuan hoa, (Val): Tieu de goc*/
+    mutable std::unordered_map<std::string, std::set<std::string>> backlinksByTitle;
+    mutable std::unordered_map<std::string, std::set<std::string>> linksBySource; // Outgoing links
+    
+    void rebuildLinkIndex() const;
+    void ensureLinkIndex() const;
 
 
 public:

@@ -186,3 +186,14 @@ std::set<std::string> extractLinks(const std::string& content){
 }
 
 
+
+std::string normalizeTitle(const std::string& s){
+    std::string out = trimSpaces(s);
+    if(out.size() > 3 && out.substr(out.size() - 3) == ".md"){
+        out = out.substr(0, out.size() - 3);
+    }
+    std::transform(out.begin(), out.end(), out.begin(),
+        [](unsigned char ch){return static_cast<char>(std::tolower(ch));});
+    
+    return out;
+}

@@ -28,3 +28,10 @@ Danh sách các trường hợp edge-case, giới hạn thiết kế hiện tạ
 | **Xu lý chuỗi & UTF-8** | Các hàm `equalsIgnoreCase`, `findIgnoreCase`, `makeSnippet` chỉ hoạt động chuẩn với ASCII; `makeSnippet` có thể cắt ngang ký tự multi-byte UTF-8. |
 | **Thời gian hệ thống** | `std::localtime` không an toàn trong môi trường đa luồng (multi-threading); `last_write_time` có thể ném exception. |
 | **Bộ test tự động** | Đang chạy trực tiếp trên thư mục `vault/notes` thật với hằng số `NOTES_DIR`, có thể gây lỗi test nhiễu nếu vault chứa ghi chú thật của người dùng. |
+
+
+
+
+
+
+

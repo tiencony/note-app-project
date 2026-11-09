@@ -25,5 +25,10 @@ bool readFileToString(const std::filesystem::path& path, std::string& out);
 std::set<std::string> extractTags(const std::string& content);
 std::string normalizeTag(const std::string& tag);
 std::set<std::string> extractLinks(const std::string& content);
+std::string normalizeTitle(const std::string& s);
+
+
+
+
 
 #endif

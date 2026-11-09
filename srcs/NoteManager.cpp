@@ -26,6 +26,7 @@ bool NoteManager::reloadNote(int i){
         std::cerr << "Khong the doc file: " << path << std::endl;
         return false;
     }
+    if(notesArray[i].getContent() != content) linkIndexDirty = true;
     notesArray[i].setContent(content);
     notesArray[i].setLastModified(getFileTime(path));
     return true;
@@ -67,6 +68,7 @@ bool NoteManager::createNote(const std::string &title, const std::string &conten
 
 
     notesArray.push_back(Note(title, content, getCurrentTime()));
+    linkIndexDirty = true;
     return true;
 }
 
@@ -116,6 +118,7 @@ void NoteManager::loadNotesFromDisk(){
         notesArray.push_back(Note(entry.path().stem().string(), content, getFileTime(entry.path())));
 
     }
+    linkIndexDirty = true;
     std::cout << "Da tai " << notesArray.size() << " ghi chu.\n";
 }
 
@@ -134,7 +137,7 @@ bool NoteManager::deleteNote(const std::string &title){
     
     // Xoa khoi RAM
     notesArray.erase(notesArray.begin() + i);
-
+    linkIndexDirty = true;
     return true;
 }
 
@@ -173,6 +176,7 @@ bool NoteManager::editNote(const std::string &title, const std::string &newConte
     outFile.close();
 
     notesArray[i].setContent(newContent);
+    linkIndexDirty = true;
     notesArray[i].setLastModified(getCurrentTime());
     return true;
 }
@@ -195,6 +199,7 @@ bool NoteManager::renameNote(const std::string& oldTitle, const std::string& new
         return false;
     }
     notesArray[i].setTitle(newTitle);
+    linkIndexDirty = true;
     notesArray[i].setLastModified(getCurrentTime());
     return true;
 }
@@ -260,19 +265,44 @@ std::map<std::string, int> NoteManager::tagCounts() const{
 
 
 
-/* Chua xu ly vc doc tu RAM nen co the bi sai 
-khi sua file bang Notepath (can sua lai sau)*/
-std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
-    std::vector<std::string> results;
-    for(const Note& note : notesArray){
-        if(equalsIgnoreCase(note.getTitle(), title)) continue;
+void NoteManager::rebuildLinkIndex() const{
+    backlinksByTitle.clear();
+    linksBySource.clear();
+    titleByKey.clear();
 
-        std::set<std::string> links = extractLinks(note.getContent());
-        for(const std::string& link : links){
-            if(equalsIgnoreCase(link, title)){
-                results.push_back(note.getTitle());
-                break;
-            }
+    // Register all note titles first, so broken-link checks can resolve them.
+    for (const Note& note : notesArray) {
+        titleByKey[normalizeTitle(note.getTitle())] = note.getTitle();
+    }
+
+    for (const Note& note : notesArray) {
+        const std::string sourceKey = normalizeTitle(note.getTitle());
+
+        for (const std::string& link : extractLinks(note.getContent())) {
+            const std::string targetKey = normalizeTitle(link);
+            if (targetKey.empty()) continue;
+
+            linksBySource[sourceKey].insert(link);
+            backlinksByTitle[targetKey].insert(sourceKey);
+        }
+    }
+}
+
+
+// [RAM] Tra hash, nhung cache co the cu neu file bi sua ngoai chuong trinh.
+std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
+    ensureLinkIndex();   
+    std::vector<std::string> results;
+    const std::string targetKey = normalizeTitle(title);
+
+    auto it = backlinksByTitle.find(targetKey);
+    if(it == backlinksByTitle.end()) return results;
+
+    for(const std::string& sourceKey : it->second){
+        if(sourceKey == targetKey) continue;
+        auto titleIt = titleByKey.find(sourceKey);
+        if(titleIt != titleByKey.end()){
+            results.push_back(titleIt->second);
         }
     }
     return results;
@@ -280,13 +310,25 @@ std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
 
 
 std::vector<BrokenLink> NoteManager::brokenLinks() const{
+    ensureLinkIndex();
     std::vector<BrokenLink> results;
-    for(const Note& note : notesArray){
-        for(const std::string& link : extractLinks(note.getContent())){   // getContent, khong phai getTitle
-            if(!isTitleExists(link)){
+    for(const Note& note : notesArray){          
+        auto it = linksBySource.find(normalizeTitle(note.getTitle()));
+        if(it == linksBySource.end()) continue;
+
+        for(const std::string& link : it->second){
+            if(titleByKey.find(normalizeTitle(link)) == titleByKey.end()){
                 results.push_back({note.getTitle(), link});
             }
         }
     }
-    return results;
+    return results;                             
+}
+
+
+void NoteManager::ensureLinkIndex() const{
+    if(linkIndexDirty){
+        rebuildLinkIndex();
+        linkIndexDirty = false;
+    }
 }

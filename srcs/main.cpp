@@ -151,6 +151,37 @@ static void testBrokenLinks(){
     check(b.brokenLinks().empty(), "brokenLinks: het note thi het link hong");
 }
 
+
+
+
+static void testLinkIndexFresh(){
+    cleanupTestFiles();
+    NoteManager b;
+    b.createNote("zz_test_X", "[[zz_test_Y]]");
+    check(b.brokenLinks().size() == 1, "index: X tro toi Y chua co -> 1 link hong");
+
+    b.createNote("zz_test_Y", "y");
+    check(b.brokenLinks().empty(),     "index: tao Y -> het hong (tu lam moi)");
+    check(b.backlinks("zz_test_Y").size() == 1, "index: Y co 1 backlink tu X");
+
+    b.editNote("zz_test_X", "khong con link");
+    check(b.backlinks("zz_test_Y").empty(),     "index: sua X bo link -> Y het backlink");
+
+    b.deleteNote("zz_test_Y");
+    b.deleteNote("zz_test_X");
+    check(b.brokenLinks().empty(), "index: xoa het -> rong");
+}
+
+
+
+
+
+
+
+
+
+
+
 static int runAutoTest(){
     cleanupTestFiles();
     std::cout << "=== TEST TU DONG (tao file zz_test_* trong vault/notes, cuoi se xoa) ===\n";
@@ -208,12 +239,14 @@ static int runAutoTest(){
     cleanupTestFiles();
     
     testBrokenLinks();
+    testLinkIndexFresh();
     NoteManager r;
     r.createNote("zz_test_R", "x");
     r.loadNotesFromDisk();    
     check(r.searchTitle("zz_test_R").size() == 1,
         "loadNotesFromDisk: tai lai khong nhan doi note");
     cleanupTestFiles();
+    
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";
     return failed == 0 ? 0 : 1;
