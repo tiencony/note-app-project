@@ -1,12 +1,18 @@
-# Program Architecture & Execution Flows (Sơ đồ luồng hệ thống)
+# NOTES & SYSTEM ARCHITECTURE
+
+Tài liệu này tổng hợp cấu trúc kiến trúc, các luồng hoạt động chính và danh sách nợ kỹ thuật (Technical Debt) của dự án C++ Note Manager.
+
+---
+
+# Part 1: Program Architecture & Execution Flows (Sơ đồ luồng hệ thống)
 
 Tài liệu này phác thảo các luồng hoạt động chính của project C++, giúp hình dung cách thức tương tác giữa các thành phần (Giao diện menu, Quản lý dữ liệu trên RAM, Tệp trên Đĩa và Bộ nhớ đệm chỉ mục liên kết).
 
 ---
 
-## 1. Bức tranh tổng thể: Ai gọi ai
-'''text
+### 1. Bức tranh tổng thể: Ai gọi ai
 
+```text
 ┌─────────────────────────────────────────────┐
 │  main.cpp   Giao diện (menu) + Bộ test      │
 └───────────────────┬─────────────────────────┘
@@ -34,8 +40,10 @@ Tài liệu này phác thảo các luồng hoạt động chính của project C
                                    │ vault/notes/*.md │
                                    └──────────────────┘
 
+```
 
 ## 2. Chương trình chạy từ đầu đến cuối
+```text
 main(argc, argv)
  │
  ├─ argv[1] == "--test" ?
@@ -65,10 +73,10 @@ main(argc, argv)
  │                            0  Thoát
  │
  └─ return 0
-
+```
 
 ## 3. Một thao tác cụ thể: createNote
-
+```text
  createNote(title, content)
  │
  ├─1 checkTitle(title)          Rỗng / Ký tự cấm / Kết thúc '.' hoặc ' '? ──► false
@@ -79,10 +87,10 @@ main(argc, argv)
  ├─5 notesArray.push_back  [RAM]
  ├─6 linkIndexDirty = true      Đánh dấu: "Chỉ mục link bây giờ đã cũ (dirty)"
  └─► true
-
+```
 
 ## 4. Chỉ mục link: ba bảng hash và cách chúng được làm mới
-
+```text
  createNote / editNote / renameNote / deleteNote / loadNotesFromDisk
         │
         └──► linkIndexDirty = true     (Chỉ bật cờ, thao tác cực kỳ nhanh)
@@ -97,10 +105,10 @@ main(argc, argv)
         │
         ▼
    Trả kết quả tra cứu hash (O(1) cho mỗi lần tra)
-
+```
 
 ## 5. Luồng xử lý khi file bị chỉnh sửa bên ngoài (Notepad/Explorer)
-
+```text
 THỜI GIAN ───────────────────────────────────────────────────────────────────►
 
  Chương trình: loadNotesFromDisk()      [DISK ──► RAM]  (RAM lưu bản chụp lúc này)
@@ -109,3 +117,5 @@ THỜI GIAN ──────────────────────�
  Chương trình: openNote("a")            [DISK] Đọc lại file a.md ──► Thấy "#cpp" ✓
                                          (RAM của riêng note "a" được cập nhật)
  Chương trình: listByTag("cpp")         [RAM] ──► Giờ mới thấy kết quả ✓
+
+ ```
