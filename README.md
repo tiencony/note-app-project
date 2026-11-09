@@ -5,7 +5,8 @@ Tài liệu này phác thảo các luồng hoạt động chính của project C
 ---
 
 ## 1. Bức tranh tổng thể: Ai gọi ai
-```text
+
+
 ┌─────────────────────────────────────────────┐
 │  main.cpp   Giao diện (menu) + Bộ test      │
 └───────────────────┬─────────────────────────┘
