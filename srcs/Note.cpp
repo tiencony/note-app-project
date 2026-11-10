@@ -1,4 +1,4 @@
-#include "../headers/Note.h"
+#include "Note.h"
 #include <iostream>
 
 Note::Note(){

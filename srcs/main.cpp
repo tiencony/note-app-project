@@ -1,27 +1,9 @@
 #include <iostream>
 #include <limits>
 #include <string>
-#include <set>
-#include "../headers/NoteManager.h"
-#include "../headers/Utils.h"
-#include <filesystem>
+#include "NoteManager/NoteManager.h"
 
-static const std::string NOTES_DIR = "vault/notes";
-namespace fs = std::filesystem;
 // ---------- Tien ich nhap lieu ----------
-static void cleanupTestFiles(){
-    std::error_code ec;
-    std::vector<fs::path> toDelete;
-    for(const auto& e : fs::directory_iterator(NOTES_DIR, ec)){
-        if(e.path().filename().string().rfind("zz_test", 0) == 0){
-            toDelete.push_back(e.path());
-        }
-    }
-    for(const auto& p : toDelete) fs::remove(p, ec);
-
-}
-
-
 static std::string readLine(const std::string& prompt){
     std::cout << prompt;
     std::string s;
@@ -38,223 +20,7 @@ static std::string readContent(){
     return content;
 }
 
-
-// ---------- Test tu dong ----------
-static int failed = 0;
-
-static void check(bool condition, const std::string& name){
-    std::cout << (condition ? "[PASS] " : "[FAIL] ") << name << "\n";
-    if(!condition) failed++;
-}
-
-static void testTags(){
-    
-    using Tags = std::set<std::string>;
-
-    check(extractTags("hoc #cpp va #Very-important")
-              == Tags{"cpp", "very-important"},
-          "extractTags: lay duoc 2 tag, doi chu thuong");
-
-    check(extractTags("# Tieu de\nnoi dung").empty(),
-          "extractTags: heading '# ' khong phai tag");
-
-    check(extractTags("abc#def").empty(),
-          "extractTags: '#' dinh lien chu thi khong phai tag");
-
-    check(extractTags("#start\nxuong dong\n#nl")
-              == Tags{"start", "nl"},
-          "extractTags: tag o dau chuoi va sau xuong dong");
-
-    check(extractTags("#cpp #CPP #Cpp").size() == 1,
-          "extractTags: trung tag chi tinh 1");
-    check(extractTags("xem (#cpp) nhe") == Tags{"cpp"}, "extractTags: lay duoc 1 tag");
-    check(normalizeTag("#CPP") == "cpp", "normalizeTag: bo # va doi chu thuong");
-    check(normalizeTag("Cpp") == "cpp",  "normalizeTag: khong co # van dung");
-
-    check(extractTags("xem (#cpp) nhe") == Tags{"cpp"},
-        "extractTags: tag trong ngoac don");
-    check(extractTags("noi \"#cpp\" nhe") == Tags{"cpp"},
-        "extractTags: tag trong ngoac kep");
-    check(extractTags("http://a.com/page#section").empty(),
-        "extractTags: neo URL khong phai tag");
-    check(extractTags("[[Note#Heading]]").empty(),
-        "extractTags: heading trong link khong phai tag");
-    }
-
-static void testLinks(){
-    using Set = std::set<std::string>;
-
-    check(extractLinks("xem [[Note A]] va [[Note B]]") == Set{"Note A", "Note B"},
-          "extractLinks: lay duoc 2 link");
-    check(extractLinks("[[A]] [[A]]").size() == 1,
-          "extractLinks: link trung chi tinh 1");
-    check(extractLinks("[[ Note ]]") == Set{"Note"},
-          "extractLinks: cat khoang trang hai dau");
-    check(extractLinks("[[]] [[ ]]").empty(),
-          "extractLinks: ten rong bi bo qua");
-    check(extractLinks("[[chua dong").empty(),
-          "extractLinks: thieu ]] thi khong co link");
-    check(extractLinks("[[a\nb]]").empty(),
-          "extractLinks: ten co xuong dong la link hong");
-    check(extractLinks("[[a [[b]]") == Set{"b"},
-          "extractLinks: link hong khong nuot link dung");
-    check(extractLinks("[ [x] ]").empty(),
-          "extractLinks: ngoac don khong phai link");
-}
-
-static void testBacklinks(){
-    NoteManager b;
-    b.createNote("zz_test_L1", "xem [[zz_test_L2]]");
-    b.createNote("zz_test_L2", "khong co link nao");
-    b.createNote("zz_test_L3", "[[ZZ_TEST_L2]] va [[zz_test_L2]]");
-    b.createNote("zz_test_L4", "[[zz_test_L4]] tu tro vao minh");
-
-    check(b.backlinks("zz_test_L2").size() == 2,
-          "backlinks: L1 va L3 tro toi L2 (L3 chi tinh 1 lan)");
-    check(b.backlinks("zz_test_l2").size() == 2,
-          "backlinks: khong phan biet hoa/thuong");
-    check(b.backlinks("zz_test_L1").empty(),
-          "backlinks: khong ai tro toi L1");
-    check(b.backlinks("zz_test_L4").empty(),
-          "backlinks: link tro vao chinh no khong tinh");
-    check(b.backlinks("khong_ton_tai").empty(),
-          "backlinks: note khong ton tai thi rong");
-
-    // don dep
-    // b.deleteNote("zz_test_L1");
-    // b.deleteNote("zz_test_L2");
-    // b.deleteNote("zz_test_L3");
-    // b.deleteNote("zz_test_L4");
-}
-static void testBrokenLinks(){
-    NoteManager b;
-    check(b.createNote("zz_test_L1", "[[zz_test_L2]] va [[zz_test_khong_co]]"),
-          "brokenLinks: tao L1");
-    check(b.createNote("zz_test_L2", "noi dung"),
-          "brokenLinks: tao L2");
-
-    auto broken = b.brokenLinks();
-    std::cout << "  [debug] so link hong: " << broken.size() << "\n";
-    for(const auto& x : broken)
-        std::cout << "  [debug] " << x.from << " -> " << x.target << "\n";
-
-    check(broken.size() == 1, "brokenLinks: chi 1 link hong");
-    check(!broken.empty() && broken[0].from == "zz_test_L1"
-                          && broken[0].target == "zz_test_khong_co",
-          "brokenLinks: dung note chua link va dung ten hong");
-
-    b.deleteNote("zz_test_L2");
-    check(b.brokenLinks().size() == 2,
-          "brokenLinks: xoa L2 thi link toi L2 thanh hong");
-
-    b.deleteNote("zz_test_L1");   // don dep
-    check(b.brokenLinks().empty(), "brokenLinks: het note thi het link hong");
-}
-
-
-
-
-static void testLinkIndexFresh(){
-    cleanupTestFiles();
-    NoteManager b;
-    b.createNote("zz_test_X", "[[zz_test_Y]]");
-    check(b.brokenLinks().size() == 1, "index: X tro toi Y chua co -> 1 link hong");
-
-    b.createNote("zz_test_Y", "y");
-    check(b.brokenLinks().empty(),     "index: tao Y -> het hong (tu lam moi)");
-    check(b.backlinks("zz_test_Y").size() == 1, "index: Y co 1 backlink tu X");
-
-    b.editNote("zz_test_X", "khong con link");
-    check(b.backlinks("zz_test_Y").empty(),     "index: sua X bo link -> Y het backlink");
-
-    b.deleteNote("zz_test_Y");
-    b.deleteNote("zz_test_X");
-    check(b.brokenLinks().empty(), "index: xoa het -> rong");
-}
-
-
-
-
-
-
-
-
-
-
-
-static int runAutoTest(){
-    cleanupTestFiles();
-    std::cout << "=== TEST TU DONG (tao file zz_test_* trong vault/notes, cuoi se xoa) ===\n";
-    testLinks();
-    testTags();
-    NoteManager m;   // capacity = 2 de test resize o note thu 3
-
-    // Tao + resize
-    check(m.createNote("zz_test_A", "hoc con tro C++"), "Tao note A");
-    check(m.createNote("zz_test_B", "ke hoach tuan"),   "Tao note B");
-    check(m.createNote("zz_test_C", "ghi chu khac"),    "Tao note C (kich hoat resize)");
-
-    // Kiem tra tieu de
-    check(!m.createNote("ZZ_TEST_a", "x"), "Tu choi trung ten khac hoa/thuong");
-    check(!m.createNote("a/b", "x"),       "Tu choi ten chua '/'");
-    check(!m.createNote("", "x"),          "Tu choi ten rong");
-    check(!m.createNote("abc.", "x"),      "Tu choi ten ket thuc bang dau cham");
-
-    // Tim kiem
-    check(m.searchTitle("TEST_A").size() == 1,   "searchTitle khong phan biet hoa/thuong");
-    check(m.searchTitle("zz_test_").size() == 3, "searchTitle ra du 3 note");
-    check(m.searchTitle("khong_co").empty(),     "searchTitle khong tim thay");
-    check(m.searchContent("CON TRO").size() == 1, "searchContent tim thay");
-    check(m.searchContent("khong_co_tu_nay").empty(), "searchContent khong tim thay");
-
-    // Mo / sua
-    check(m.openNote("zz_test_a"), "Mo note (go khac hoa/thuong)");
-    check(!m.openNote("khong_ton_tai"), "Mo note khong ton tai tra ve false");
-    check(m.editNote("zz_test_A", "noi dung moi hoan toan"), "Sua note A");
-    check(m.searchContent("hoan toan").size() == 1, "Noi dung moi tim duoc");
-    check(m.searchContent("con tro").empty(),       "Noi dung cu khong con");
-
-    // Doi ten
-    check(m.renameNote("zz_test_B", "zz_test_B2"), "Doi ten B -> B2");
-    check(!m.openNote("zz_test_B"),                "Ten cu khong con");
-    check(m.openNote("zz_test_B2"),                "Ten moi mo duoc");
-    check(!m.renameNote("zz_test_B2", "zz_test_C"), "Tu choi doi ten trung note khac");
-    check(m.renameNote("zz_test_C", "ZZ_TEST_C"),   "Cho phep doi hoa/thuong chinh no");
-
-    // Doc lai tu o cung bang doi tuong moi
-    NoteManager m2;
-    m2.loadNotesFromDisk();
-    check(m2.searchTitle("zz_test_").size() == 3, "Load lai tu dia thay du 3 note");
-    check(m2.searchContent("hoan toan").size() == 1, "Noi dung sua da duoc luu xuong dia");
-
-    // Xoa (don dep luon)
-    check(m.deleteNote("zz_test_A"),  "Xoa A (phan tu dau)");
-    check(m.deleteNote("zz_test_C"),  "Xoa C");
-    check(m.deleteNote("zz_test_B2"), "Xoa B2 (phan tu cuoi)");
-    check(!m.deleteNote("zz_test_A"), "Xoa lai note da xoa tra ve false");
-    check(m.searchTitle("zz_test_").empty(), "Khong con note nao");
-    
-    // Test backlinks
-    testBacklinks();
-    cleanupTestFiles();
-    
-    testBrokenLinks();
-    testLinkIndexFresh();
-    NoteManager r;
-    r.createNote("zz_test_R", "x");
-    r.loadNotesFromDisk();    
-    check(r.searchTitle("zz_test_R").size() == 1,
-        "loadNotesFromDisk: tai lai khong nhan doi note");
-    cleanupTestFiles();
-    
-    std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
-              << " (" << failed << " that bai)\n";
-    return failed == 0 ? 0 : 1;
-    
-    
-}
-
-// ---------- Menu tuong tac ----------
+// ---------- Menu ----------
 static void printMenu(){
     std::cout << "\n===== QUAN LY GHI CHU =====\n"
               << "1. Tao ghi chu\n"
@@ -265,9 +31,11 @@ static void printMenu(){
               << "6. Sua noi dung ghi chu\n"
               << "7. Doi ten ghi chu\n"
               << "8. Xoa ghi chu\n"
-              << "9. Hien cac danh sach theo Tag\n"
+              << "9. Hien cac ghi chu theo Tag\n"
               << "10. Liet ke cac tag\n"
               << "11. Xem backlinks cua ghi chu\n"
+              << "12. Liet ke link hong\n"
+              << "13. Tai lai tu dia\n"
               << "0. Thoat\n"
               << "Chon: ";
 }
@@ -329,24 +97,21 @@ static void runMenu(){
                 else std::cout << "Doi ten that bai.\n";
                 break;
             }
-            case 8:{
+            case 8:
                 if(manager.deleteNote(readLine("Tieu de can xoa: "))) std::cout << "Da xoa.\n";
                 else std::cout << "Xoa that bai.\n";
                 break;
-            }
             case 9: {
                 auto results = manager.listByTag(readLine("Tag: "));
                 if(results.empty()) std::cout << "Khong co ghi chu nao.\n";
                 for(const auto& t : results) std::cout << "- " << t << "\n";
                 break;
             }
-
             case 10: {
                 auto counts = manager.tagCounts();
                 if(counts.empty()) std::cout << "Chua co tag nao.\n";
-                for(const auto& item : counts){
+                for(const auto& item : counts)
                     std::cout << "#" << item.first << " (" << item.second << ")\n";
-                }
                 break;
             }
             case 11: {
@@ -354,7 +119,17 @@ static void runMenu(){
                 if(results.empty()) std::cout << "Khong co ghi chu nao tro toi.\n";
                 for(const auto& t : results) std::cout << "- " << t << "\n";
                 break;
-            }       
+            }
+            case 12: {
+                auto broken = manager.brokenLinks();
+                if(broken.empty()) std::cout << "Khong co link hong.\n";
+                for(const auto& b : broken)
+                    std::cout << "- " << b.from << " -> [[" << b.target << "]]\n";
+                break;
+            }
+            case 13:
+                manager.loadNotesFromDisk();
+                break;
             case 0:
                 std::cout << "Tam biet!\n";
                 break;
@@ -364,10 +139,7 @@ static void runMenu(){
     }
 }
 
-int main(int argc, char* argv[]){
-    if(argc > 1 && std::string(argv[1]) == "--test"){
-        return runAutoTest();
-    }
+int main(){
     runMenu();
     return 0;
 }

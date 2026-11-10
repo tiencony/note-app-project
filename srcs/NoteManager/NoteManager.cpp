@@ -1,16 +1,18 @@
-#include "../headers/NoteManager.h"
-#include "../headers/Utils.h"
+#include "NoteManager/NoteManager.h"
+#include "Utils/FileUtils.h"     // readFileToString
+#include "Utils/StringUtils.h"   // equalsIgnoreCase, normalizeTitle
+#include "Utils/TimeUtils.h"     // getCurrentTime, getFileTime
+#include "Utils/Parser.h"
+#include "Utils/Debug.h"
 
-#include <fstream>
+
 #include <filesystem>
+#include <fstream>
 #include <iostream>
-#include <algorithm>
-#include <cctype>
-#include <sstream>
-#include <vector>
+#include <system_error>
 
 namespace fs = std::filesystem;
-static const std::string NOTES_DIR = "vault/notes";
+static const std::string NOTES_DIR = "vault/notes";  
 
 std::string NoteManager::makePath(const std::string &title) const{
     return NOTES_DIR + "/" + title + ".md";
@@ -95,6 +97,14 @@ bool NoteManager::checkTitle(const std::string &input) const{
         std::cout << "Tieu de khong duoc ket thuc bang dau cham hoac dau cach!\n";
         return false;
     }
+    if(input.front() == ' '){
+        std::cout << "Tieu de khong duoc bat dau bang dau cach!\n";
+        return false;
+    }
+    if(input.size() > 3 && equalsIgnoreCase(input.substr(input.size() - 3), ".md")){
+        std::cout << "Tieu de khong can duoi .md!\n";
+        return false;
+    }
     return true;
 }
 
@@ -142,8 +152,9 @@ bool NoteManager::deleteNote(const std::string &title){
 }
 
 int NoteManager::findIndex(const std::string& title) const{
+    const std::string key = normalizeTitle(title);
     for(std::size_t i = 0; i < notesArray.size(); i++){
-        if(equalsIgnoreCase(title, notesArray[i].getTitle())) return static_cast<int>(i);
+        if(equalsIgnoreCase(key, notesArray[i].getTitle())) return static_cast<int>(i);
     }
     return -1;
 }
@@ -161,25 +172,29 @@ bool NoteManager::openNote(const std::string& title){
 
 
 
-bool NoteManager::editNote(const std::string &title, const std::string &newContent){
-    int i = findIndex(title);
-    if (i == -1)
-        return false;
 
+
+// Cap nhat tren disk lan RAM
+bool NoteManager::writeNoteContent(int i , const std::string& content){
     std::ofstream outFile(makePath(notesArray[i].getTitle()));
-    if (!outFile){
-        std::cerr << "Khong the mo file de ghi!\n";
-        return false;
-    }
-
-    outFile << newContent;
+    outFile << content;
     outFile.close();
+    if(outFile.fail()) return false;
 
-    notesArray[i].setContent(newContent);
-    linkIndexDirty = true;
+    notesArray[i].setContent(content);
     notesArray[i].setLastModified(getCurrentTime());
+    linkIndexDirty = true;
     return true;
 }
+
+
+bool NoteManager::editNote(const std::string& title, const std::string& newContent){
+    int i = findIndex(title);
+    if(i == -1) return false;
+    return writeNoteContent(i, newContent);
+}
+
+
 
 bool NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
     int i = findIndex(oldTitle);
@@ -198,137 +213,32 @@ bool NoteManager::renameNote(const std::string& oldTitle, const std::string& new
         std::cerr << "Khong the doi ten file: " << ec.message() << std::endl;
         return false;
     }
+    const std::string oldTitleStored = notesArray[i].getTitle();
     notesArray[i].setTitle(newTitle);
-    linkIndexDirty = true;
     notesArray[i].setLastModified(getCurrentTime());
+    linkIndexDirty = true;
+
+    int n = updateLinksAfterRename(oldTitleStored, newTitle);
+    std::cout << "Da cap nhat link trong " << n << " ghi chu.\n";
     return true;
+    //Đổi title trong RAM trước vòng lặp, để reloadNote của chính note vừa đổi tên đọc đúng path mới.
 }
 
 
-std::vector<std::string> NoteManager::searchTitle(const std::string& keyword) const{
-    std::vector<std::string> results;
-    if(keyword.empty()) return results;
-    for(const Note& note : notesArray){
-        if(containsIgnoreCase(note.getTitle(), keyword)){
-            results.push_back(note.getTitle());
-        }
+void NoteManager::debugDump() const{
+    std::cout << "  [RAM] " << notesArray.size() << " ghi chu, linkIndexDirty="
+              << (linkIndexDirty ? "true" : "false") << "\n";
+    for(const Note& n : notesArray){
+        std::cout << "    - \"" << n.getTitle() << "\" ("
+                  << n.getContent().size() << " byte): "
+                  << preview(n.getContent()) << "\n";
     }
-    return results;
-}
-
-
-std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword) const{
-    std::vector<SearchResult> results;
-    if(keyword.empty()) return results;
-    
-    for(const Note& note : notesArray){
-        const std::string& content = note.getContent();
-        std::size_t pos = findIgnoreCase(content, keyword);
-
-        if(pos != std::string::npos){
-            results.push_back({
-                    note.getTitle(),
-                    makeSnippet(content, pos, keyword.size())
-            });
-        }
-    }
-
-    return results;
-}
-
-
-std::vector<std::string> NoteManager::listByTag(const std::string& tag) const{
-    std::vector<std::string> results;
-    std::string normalized_tag = normalizeTag(tag);
-    
-    for(const Note& note : notesArray){
-        std::set<std::string> tags = extractTags(note.getContent());
-        if(tags.count(normalized_tag) > 0){
-            results.push_back(note.getTitle());
-
-        }
-    }
-    return results;
-}
-
-std::map<std::string, int> NoteManager::tagCounts() const{
-    std::map<std::string, int> counts;
-    for(const Note& note : notesArray){
-        std::set<std::string> tags = extractTags(note.getContent());
-        for(const std::string&tag : tags){
-            counts[tag]++;
-        }
-    }
-    return counts;
+    std::cout << std::flush;
 }
 
 
 
 
-void NoteManager::rebuildLinkIndex() const{
-    backlinksByTitle.clear();
-    linksBySource.clear();
-    titleByKey.clear();
-
-    // Register all note titles first, so broken-link checks can resolve them.
-    for (const Note& note : notesArray) {
-        titleByKey[normalizeTitle(note.getTitle())] = note.getTitle();
-    }
-
-    for (const Note& note : notesArray) {
-        const std::string sourceKey = normalizeTitle(note.getTitle());
-
-        for (const std::string& link : extractLinks(note.getContent())) {
-            const std::string targetKey = normalizeTitle(link);
-            if (targetKey.empty()) continue;
-
-            linksBySource[sourceKey].insert(link);
-            backlinksByTitle[targetKey].insert(sourceKey);
-        }
-    }
-}
 
 
-// [RAM] Tra hash, nhung cache co the cu neu file bi sua ngoai chuong trinh.
-std::vector<std::string> NoteManager::backlinks(const std::string& title) const{
-    ensureLinkIndex();   
-    std::vector<std::string> results;
-    const std::string targetKey = normalizeTitle(title);
 
-    auto it = backlinksByTitle.find(targetKey);
-    if(it == backlinksByTitle.end()) return results;
-
-    for(const std::string& sourceKey : it->second){
-        if(sourceKey == targetKey) continue;
-        auto titleIt = titleByKey.find(sourceKey);
-        if(titleIt != titleByKey.end()){
-            results.push_back(titleIt->second);
-        }
-    }
-    return results;
-}
-
-
-std::vector<BrokenLink> NoteManager::brokenLinks() const{
-    ensureLinkIndex();
-    std::vector<BrokenLink> results;
-    for(const Note& note : notesArray){          
-        auto it = linksBySource.find(normalizeTitle(note.getTitle()));
-        if(it == linksBySource.end()) continue;
-
-        for(const std::string& link : it->second){
-            if(titleByKey.find(normalizeTitle(link)) == titleByKey.end()){
-                results.push_back({note.getTitle(), link});
-            }
-        }
-    }
-    return results;                             
-}
-
-
-void NoteManager::ensureLinkIndex() const{
-    if(linkIndexDirty){
-        rebuildLinkIndex();
-        linkIndexDirty = false;
-    }
-}

@@ -2,11 +2,11 @@
 #define NOTE_MANAGER_H
 
 #include "Note.h"
-#include <string>
-#include <vector>
 #include <map>
 #include <set>
+#include <string>
 #include <unordered_map>
+#include <vector>
 
 struct SearchResult {
     std::string title;
@@ -36,7 +36,8 @@ private:
     void rebuildLinkIndex() const;
     void ensureLinkIndex() const;
 
-
+    bool writeNoteContent(int i , const std::string& content);
+    int updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle);
 public:
     NoteManager() = default;
 
@@ -68,6 +69,8 @@ public:
     //backlinks
     std::vector<std::string> backlinks(const std::string& title) const;
     std::vector<BrokenLink> brokenLinks() const;
+
+    void debugDump() const;   // in trang thai trong RAM (de debug)
 };
 
 #endif
