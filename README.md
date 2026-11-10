@@ -117,5 +117,3 @@ THỜI GIAN ──────────────────────�
  Chương trình: openNote("a")            [DISK] Đọc lại file a.md ──► Thấy "#cpp" ✓
                                          (RAM của riêng note "a" được cập nhật)
  Chương trình: listByTag("cpp")         [RAM] ──► Giờ mới thấy kết quả ✓
-
- ```
