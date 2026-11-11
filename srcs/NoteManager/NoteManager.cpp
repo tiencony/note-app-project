@@ -213,30 +213,35 @@ NoteError NoteManager::editNote(const std::string& title, const std::string& new
 
 
 
-NoteError NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
+RenameResult NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
+    RenameResult result;
+    auto fail = [&result](NoteError e){result.error = e; return result;};
+
+
+
     int i = findIndex(oldTitle);
-    if(i == -1) return NoteError::NotFound;
-    if(!checkTitle(newTitle)) return NoteError::InvalidTitle;
+    if(i == -1) return fail(NoteError::NotFound);
+    if(!checkTitle(newTitle)) return fail(NoteError::InvalidTitle);
 
     const std::string oldStored = notesArray[i].getTitle();
     std::error_code ec;
 
     // Cho phep doi chu cai hoa/thuong voi chinh no
     int j = findIndex(newTitle);
-    if(j != -1 && j != i) return NoteError::AlreadyExists;
+    if(j != -1 && j != i) return fail(NoteError::AlreadyExists);
 
-    if(j == -1 && fs::exists(makePath(newTitle), ec)) return NoteError::AlreadyExists;
+    if(j == -1 && fs::exists(makePath(newTitle), ec)) return fail(NoteError::AlreadyExists);
 
     fs::rename(makePath(oldStored), makePath(newTitle), ec);
-    if(ec) return NoteError::WriteFailed;
+    if(ec) return fail(NoteError::WriteFailed);
 
 
     notesArray[i].setTitle(newTitle);
-    notesArray[i].setLastModified(getCurrentTime());
+    notesArray[i].setLastModified(getFileTime(makePath(newTitle)));
     linkIndexDirty = true;
 
-    updateLinksAfterRename(oldStored, newTitle);   
-    return NoteError::Ok;
+    updateLinksAfterRename(oldStored, newTitle, result);   
+    return result;
     //Đổi title trong RAM trước vòng lặp, để reloadNote của chính note vừa đổi tên đọc đúng path mới.
 }
 

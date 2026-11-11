@@ -46,6 +46,11 @@ struct NoteInfo {
     std::string lastModified;
 };
 
+struct RenameResult {
+    NoteError error = NoteError::Ok;
+    int updatedNotes = 0;                    // so note da duoc cap nhat link
+    std::vector<std::string> failedNotes;    // note ghi link that bai (file cu van giu nguyen)
+};
 
 class NoteManager{
 private:
@@ -66,7 +71,7 @@ private:
     void ensureLinkIndex() const;
 
     bool writeNoteContent(int i , const std::string& content);
-    int updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle);
+    void updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle, RenameResult& result);
 public:
     explicit NoteManager(std::filesystem::path rootDir = "vault/notes");
 
@@ -85,7 +90,7 @@ public:
 
     NoteError editNote(const std::string &title, const std::string &newContent);
     NoteError deleteNote(const std::string &title);
-    NoteError renameNote(const std::string& oldTitle, const std::string& newTitle);
+    RenameResult renameNote(const std::string& oldTitle, const std::string& newTitle);
 
     //search
     std::vector<SearchResult> searchContent(const std::string& keyword) const;

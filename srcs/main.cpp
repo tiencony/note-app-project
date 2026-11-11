@@ -148,9 +148,16 @@ static void runMenu(){
             case 7: {
                 std::string oldT = readLine("Tieu de cu: ");
                 std::string newT = readLine("Tieu de moi: ");
-                NoteError err = manager.renameNote(oldT, newT);
-                if(err == NoteError::Ok) std::cout << "Da doi ten.\n";
-                else std::cout << "Doi ten that bai: " << errorMessage(err) << "\n";
+                RenameResult r = manager.renameNote(oldT, newT);
+                if(r.error != NoteError::Ok){
+                    std::cout << "Doi ten that bai: " << errorMessage(r.error) << "\n";
+                    break;
+                }
+                std::cout << "Da doi ten.\n";
+                if(r.updatedNotes > 0)
+                    std::cout << "Da cap nhat link trong " << r.updatedNotes << " ghi chu.\n";
+                for(const auto& t : r.failedNotes)
+                    std::cout << "  Khong cap nhat duoc link trong: " << t << "\n";
                 break;
             }
             case 8: {

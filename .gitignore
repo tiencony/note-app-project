@@ -1,0 +1,6 @@
+build/
+*.o
+*.d
+*.exe
+vault/notes/
+vault_test/

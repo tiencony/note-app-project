@@ -77,9 +77,12 @@ void NoteManager::ensureLinkIndex() const{
 }
 
 
-int NoteManager::updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle){
-    if(normalizeTitle(oldTitle) == normalizeTitle(newTitle)) return 0;
-    int updated = 0;
+void NoteManager::updateLinksAfterRename(const std::string& oldTitle,
+                                         const std::string& newTitle,
+                                         RenameResult& result){
+
+    if(normalizeTitle(oldTitle) == normalizeTitle(newTitle)) return;
+
     for(std::size_t i = 0; i < notesArray.size(); i++){
         const int idx = static_cast<int>(i);
         if(!reloadNote(idx)) continue; // Ko doc dc thi bo qua, ko ghi de
@@ -89,9 +92,7 @@ int NoteManager::updateLinksAfterRename(const std::string& oldTitle, const std::
         const std::string replaced = replaceLink(notesArray[i].getContent(), oldTitle, newTitle);
         if(replaced == notesArray[i].getContent()) continue;
         
-        if(writeNoteContent(idx, replaced)) updated++;
-        else std::cerr << "Khong cap nhap duoc link trong: " << notesArray[i].getTitle() << std::endl;
-
+        if(writeNoteContent(idx, replaced)) result.updatedNotes++;
+        else result.failedNotes.push_back(notesArray[i].getTitle());
     }
-    return updated;
 } 

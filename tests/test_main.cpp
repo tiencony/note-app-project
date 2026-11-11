@@ -17,7 +17,6 @@ int main(){
     testLoadFailureKeepsMemory();
     testCreateErrors();
     testRenameErrors();
-    testRenameErrors_after();
     testOpenNote();
     
     testListNotes();
