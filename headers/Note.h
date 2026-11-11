@@ -22,8 +22,6 @@ public:
     const std::string &getLastModified() const;
     void setLastModified(const std::string &lastModified);
 
-    void displayInfo() const;
-    void displayNote() const;
 };
 
 #endif

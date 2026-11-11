@@ -38,13 +38,3 @@ void Note::setLastModified(const std::string &lastModified){
     this->lastModified = lastModified;
 }
 
-void Note::displayInfo() const{
-    std::cout << "-------------------------------------------\n";
-    std::cout << "Title: " << title << std::endl;
-    std::cout << "Last Modified: " << lastModified << std::endl;
-}
-
-void Note::displayNote() const{
-    std::cout << "File content:\n"
-              << content << std::endl;
-}

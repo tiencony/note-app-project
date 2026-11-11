@@ -10,24 +10,24 @@
 #include <fstream>
 #include <iostream>
 #include <system_error>
+#include <utility>
 
 namespace fs = std::filesystem;
-static const std::string NOTES_DIR = "vault/notes";  
 
-std::string NoteManager::makePath(const std::string &title) const{
-    return NOTES_DIR + "/" + title + ".md";
+NoteManager::NoteManager(std::filesystem::path rootDir) : root(std::move(rootDir)) {}
+
+
+std::string NoteManager::makePath(const std::string& title) const{
+    return (root / (title + ".md")).string();
 }
-
 
 
 
 bool NoteManager::reloadNote(int i){
     std::string path = makePath(notesArray[i].getTitle());
     std::string content;
-    if(!readFileToString(path, content)){
-        std::cerr << "Khong the doc file: " << path << std::endl;
-        return false;
-    }
+    if(!readFileToString(path, content)) return false; 
+
     if(notesArray[i].getContent() != content) linkIndexDirty = true;
     notesArray[i].setContent(content);
     notesArray[i].setLastModified(getFileTime(path));
@@ -37,74 +37,61 @@ bool NoteManager::reloadNote(int i){
 
 
 
+NoteError NoteManager::validateNewTitle(const std::string& title) const{
+    if(!checkTitle(title)) return NoteError::InvalidTitle;
+    if(isTitleExists(title)) return NoteError::AlreadyExists;
+    std::error_code ec;
+    if(fs::exists(makePath(title), ec)) return NoteError::AlreadyExists;
+    return NoteError::Ok;
+}
 
 
 
+NoteError NoteManager::createNote(const std::string &title, const std::string &content){
+    NoteError v = validateNewTitle(title);
+    if(v != NoteError::Ok) return v;
 
-bool NoteManager::createNote(const std::string &title, const std::string &content){
-    if (!checkTitle(title)) return false;
-    if (isTitleExists(title)){
-        std::cerr << "Loi: Tieu de da ton tai\n";
-        return false;
-    }
 
-    fs::create_directories(NOTES_DIR);
-    std::string filePath = makePath(title);
 
     std::error_code ec;
-    if (fs::exists(filePath, ec)) {
-        std::cerr << "Loi: File da ton tai tren dia (co the ban vua tao ngoai chuong trinh)\n";
-        return false;
-    }
-    std::ofstream outFile(filePath);
+    fs::create_directories(root, ec);
+    if(ec) return NoteError::WriteFailed;
 
-    if (!outFile){
-        std::cerr << "Loi: Khong the tao file ghi chu tai " << filePath << std::endl;
-        return false;
-    }
+    const std::string filePath = makePath(title);    
+    std::ofstream outFile(filePath);
+    if(!outFile) return NoteError::WriteFailed;
 
     outFile << content;
     outFile.close();
-    std::cout << "Da luu ghi chu thanh cong vao " << filePath << std::endl;
-
+    if(outFile.fail()){                                                  // loi luc ghi (dia day...)
+        fs::remove(filePath, ec);                                        // don file do dang
+        return NoteError::WriteFailed;
+    }
 
 
     notesArray.push_back(Note(title, content, getCurrentTime()));
     linkIndexDirty = true;
-    return true;
+    return NoteError::Ok;
+
 }
 
-void NoteManager::listNotes() const{
-    if (notesArray.empty()) return;
+std::vector<NoteInfo> NoteManager::listNotes() const{
+    std::vector<NoteInfo> result;
+    result.reserve(notesArray.size());//Bt trc kich co nen dung reserve cho nhanh
     for(const Note& note : notesArray){
-        note.displayInfo();
+        result.push_back({note.getTitle(), note.getLastModified()});
+
     }
+    return result;
 }
 
 
 bool NoteManager::checkTitle(const std::string &input) const{
-    if (input.empty() || input.find_first_not_of(' ') == std::string::npos){
-        std::cout << "Tieu de khong duoc de trong!\n";
-        return false;
-    }
-
-    if (input.find_first_of("/\\:*?\"<>|") != std::string::npos){
-        std::cout << "Tieu de chua ky tu khong hop le!\n";
-        return false;
-    }
-
-    if (input.back() == '.' || input.back() == ' '){
-        std::cout << "Tieu de khong duoc ket thuc bang dau cham hoac dau cach!\n";
-        return false;
-    }
-    if(input.front() == ' '){
-        std::cout << "Tieu de khong duoc bat dau bang dau cach!\n";
-        return false;
-    }
-    if(input.size() > 3 && equalsIgnoreCase(input.substr(input.size() - 3), ".md")){
-        std::cout << "Tieu de khong can duoi .md!\n";
-        return false;
-    }
+    if (input.empty() || input.find_first_not_of(' ') == std::string::npos) return false;
+    if (input.find_first_of("/\\:*?\"<>|") != std::string::npos) return false;
+    if (input.back() == '.' || input.back() == ' ') return false;
+    if(input.front() == ' ') return false;
+    if(input.size() > 3 && equalsIgnoreCase(input.substr(input.size() - 3), ".md")) return false;
     return true;
 }
 
@@ -114,41 +101,50 @@ bool NoteManager::isTitleExists(const std::string &title) const{
 
 
 
-void NoteManager::loadNotesFromDisk(){
-    fs::create_directories(NOTES_DIR);
-    notesArray.clear();
-
-    for (const auto &entry : fs::directory_iterator(NOTES_DIR)){
-        if (!entry.is_regular_file() || entry.path().extension() != ".md") continue;
+LoadReport NoteManager::loadNotesFromDisk(){
+    LoadReport report;
+    std::error_code ec;
+    fs::create_directories(root, ec);
+    if(ec){
+        report.ok = false;
+        return report;
+    }
+    std::vector<Note> fresh;
+    for(fs::directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)){
+        std::error_code ec2;
+        if(!it->is_regular_file(ec2) || it->path().extension() != ".md") continue;
 
         std::string content;
-        if(!readFileToString(entry.path(), content)) continue;
-        
-
-        notesArray.push_back(Note(entry.path().stem().string(), content, getFileTime(entry.path())));
-
+        if(!readFileToString(it->path(), content)){
+            report.skipped.push_back(it->path().filename().string());
+            continue;
+        }
+        fresh.push_back(Note(it->path().stem().string(), content, getFileTime(it->path())));
     }
+    if(ec){
+        report.ok = false; // loi giua chung: RAM van nguyen
+        return report;
+    }
+    notesArray = std::move(fresh);
     linkIndexDirty = true;
-    std::cout << "Da tai " << notesArray.size() << " ghi chu.\n";
+    report.loaded = static_cast<int>(notesArray.size());
+    return report;
+
 }
 
 
-bool NoteManager::deleteNote(const std::string &title){
+NoteError NoteManager::deleteNote(const std::string &title){
     int i = findIndex(title);
-    if (i == -1)
-        return false;
+    if (i == -1) return NoteError::NotFound;
 
     std::error_code ec;
     fs::remove(makePath(notesArray[i].getTitle()), ec);
-    if (ec) {   // loi that su (bi khoa, khong co quyen...)
-        std::cerr << "Khong the xoa file: " << ec.message() << std::endl;
-        return false;
-    }
+    if (ec) return NoteError::DeleteFailed;
     
     // Xoa khoi RAM
     notesArray.erase(notesArray.begin() + i);
     linkIndexDirty = true;
-    return true;
+    return NoteError::Ok;
 }
 
 int NoteManager::findIndex(const std::string& title) const{
@@ -159,15 +155,19 @@ int NoteManager::findIndex(const std::string& title) const{
     return -1;
 }
 
-bool NoteManager::openNote(const std::string& title){
-    int i = findIndex(title);
-    if(i == -1) return false;
 
-    if(!reloadNote(i)){
-        std::cout << "(Khong doc lai duoc file, hien ban luu trong bo nho)\n";
+// Thu doc lai tu DISK de lam moi cache RAM. 
+// Neu file mat/loi -> stale = true, van tra ban RAM cu (ko xoa khoi RAM)
+OpenResult NoteManager::openNote(const std::string& title){
+    OpenResult result;
+    int i = findIndex(title);
+    if(i == -1){
+        result.error = NoteError::NotFound;
+        return result;
     }
-    notesArray[i].displayNote();
-    return true;
+    result.stale = !reloadNote(i); // stale = true neu ko doc duoc tu dia
+    result.note = notesArray[i];   // Luon tra ban sao an toan
+    return result;
 }
 
 
@@ -188,39 +188,55 @@ bool NoteManager::writeNoteContent(int i , const std::string& content){
 }
 
 
-bool NoteManager::editNote(const std::string& title, const std::string& newContent){
+NoteError NoteManager::editNote(const std::string& title, const std::string& newContent){
     int i = findIndex(title);
-    if(i == -1) return false;
-    return writeNoteContent(i, newContent);
+    if(i == -1) return NoteError::NotFound;
+    fs::path targetPath = makePath(notesArray[i].getTitle());
+    fs::path tempPath = targetPath;
+    tempPath += ".tmp";
+    std::error_code ec;
+
+    {
+        std::ofstream out(tempPath);
+        if(!out.is_open()){
+            return NoteError::WriteFailed;
+        }
+        out << newContent;
+    }
+    fs::rename(tempPath, targetPath, ec);
+    if(ec){
+        fs::remove(tempPath, ec); // Nếu đổi tên lỗi thì dọn file tạm
+        return NoteError::WriteFailed;
+    }
+    return writeNoteContent(i, newContent) ? NoteError::Ok : NoteError::WriteFailed;
 }
 
 
 
-bool NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
+NoteError NoteManager::renameNote(const std::string& oldTitle, const std::string& newTitle){
     int i = findIndex(oldTitle);
-    if(i == -1) return false;
-    if(!checkTitle(newTitle)) return false;
+    if(i == -1) return NoteError::NotFound;
+    if(!checkTitle(newTitle)) return NoteError::InvalidTitle;
+
+    const std::string oldStored = notesArray[i].getTitle();
+    std::error_code ec;
 
     // Cho phep doi chu cai hoa/thuong voi chinh no
     int j = findIndex(newTitle);
-    if(j != -1 && j != i){
-        std::cerr << "Loi: Tieu de moi da ton tai\n";
-        return false;
-    }
-    std::error_code ec;
-    fs::rename(makePath(notesArray[i].getTitle()), makePath(newTitle), ec);
-    if(ec){
-        std::cerr << "Khong the doi ten file: " << ec.message() << std::endl;
-        return false;
-    }
-    const std::string oldTitleStored = notesArray[i].getTitle();
+    if(j != -1 && j != i) return NoteError::AlreadyExists;
+
+    if(j == -1 && fs::exists(makePath(newTitle), ec)) return NoteError::AlreadyExists;
+
+    fs::rename(makePath(oldStored), makePath(newTitle), ec);
+    if(ec) return NoteError::WriteFailed;
+
+
     notesArray[i].setTitle(newTitle);
     notesArray[i].setLastModified(getCurrentTime());
     linkIndexDirty = true;
 
-    int n = updateLinksAfterRename(oldTitleStored, newTitle);
-    std::cout << "Da cap nhat link trong " << n << " ghi chu.\n";
-    return true;
+    updateLinksAfterRename(oldStored, newTitle);   
+    return NoteError::Ok;
     //Đổi title trong RAM trước vòng lặp, để reloadNote của chính note vừa đổi tên đọc đúng path mới.
 }
 

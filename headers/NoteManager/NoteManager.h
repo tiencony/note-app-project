@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <filesystem>
 
 struct SearchResult {
     std::string title;
@@ -18,12 +19,40 @@ struct BrokenLink{
     std::string target;   // ten ma link tro toi (khong ton tai)
 };
 
+struct LoadReport {
+    bool ok = true;        // false: khong duyet duoc thu muc -> RAM giu nguyen
+    int loaded = 0;                    
+    std::vector<std::string> skipped;   // ten file khong doc duoc
+};
+
+enum class NoteError {
+    Ok,
+    NotFound,
+    InvalidTitle,
+    AlreadyExists,
+    ReadFailed,
+    WriteFailed,
+    DeleteFailed 
+};
+
+struct OpenResult{
+    NoteError error = NoteError::Ok;
+    Note note;
+    bool stale = false;   //true: ko doc lai duoc tu dia -> doc lai trg RAM
+};
+
+struct NoteInfo {
+    std::string title;
+    std::string lastModified;
+};
+
+
 class NoteManager{
 private:
     std::vector<Note> notesArray;
+    std::filesystem::path root; 
 
     std::string makePath(const std::string &title) const;
-    bool isTitleExists(const std::string &title) const;
     int findIndex(const std::string &title) const;
     bool reloadNote(int i);
     
@@ -39,23 +68,24 @@ private:
     bool writeNoteContent(int i , const std::string& content);
     int updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle);
 public:
-    NoteManager() = default;
+    explicit NoteManager(std::filesystem::path rootDir = "vault/notes");
 
+    NoteError createNote(const std::string &title = "Untitled",
+                     const std::string &content = "No content");
 
-    bool createNote(const std::string &title = "Untitled", const std::string &content = "No content");
-    void listNotes() const;
+    NoteError validateNewTitle(const std::string& title) const;
+    bool isTitleExists(const std::string& title) const;
+    std::vector<NoteInfo> listNotes() const; 
     bool checkTitle(const std::string &input) const;
 
 
-    void loadNotesFromDisk();
+    LoadReport loadNotesFromDisk();    
 
-    bool deleteNote(const std::string &title);
-    bool openNote(const std::string &title);
+    OpenResult openNote(const std::string &title);
 
-    
-    bool editNote(const std::string &title, const std::string &newContent);
-    bool renameNote(const std::string& oldTitle, const std::string& newTitle);
-
+    NoteError editNote(const std::string &title, const std::string &newContent);
+    NoteError deleteNote(const std::string &title);
+    NoteError renameNote(const std::string& oldTitle, const std::string& newTitle);
 
     //search
     std::vector<SearchResult> searchContent(const std::string& keyword) const;

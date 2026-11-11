@@ -3,6 +3,7 @@
 #include "Utils/StringUtils.h"   // normalizeTitle
 #include <iostream>
 
+
 void NoteManager::rebuildLinkIndex() const{
     backlinksByTitle.clear();
     linksBySource.clear();
@@ -93,4 +94,4 @@ int NoteManager::updateLinksAfterRename(const std::string& oldTitle, const std::
 
     }
     return updated;
-}
+} 

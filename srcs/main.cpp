@@ -20,6 +20,41 @@ static std::string readContent(){
     return content;
 }
 
+static std::string errorMessage(NoteError e){
+    switch(e){
+        case NoteError::Ok:            return "Thanh cong";
+        case NoteError::NotFound:      return "Khong tim thay ghi chu";
+        case NoteError::InvalidTitle:  return "Tieu de khong hop le (rong, chua ky tu cam, hoac ket thuc bang dau cham/dau cach)";
+        case NoteError::AlreadyExists: return "Tieu de da ton tai";
+        case NoteError::ReadFailed:    return "Khong doc duoc file";
+        case NoteError::WriteFailed:   return "Khong ghi duoc file";
+        case NoteError::DeleteFailed:  return "Khong xoa duoc file";
+    }
+    return "Loi khong xac dinh";
+}
+
+static void printLoadReport(const LoadReport& r){
+    if(!r.ok){
+        std::cout << "Khong doc duoc thu muc ghi chu. Giu nguyen du lieu hien co.\n";
+        return;
+    }
+    std::cout << "Da tai " << r.loaded << " ghi chu.\n";
+    for(const auto& f : r.skipped)
+        std::cout << "  Bo qua (khong doc duoc): " << f << "\n";
+}
+
+static bool askNewTitle(const NoteManager& manager, std::string& title){
+    while(true){
+        title = readLine("Tieu de (de trong de huy): ");
+        if(title.empty()) return false;
+
+        NoteError err = manager.validateNewTitle(title);
+        if(err == NoteError::Ok) return true;
+        std::cout << "  " << errorMessage(err) << ". Moi nhap lai.\n";
+    }
+}
+
+
 // ---------- Menu ----------
 static void printMenu(){
     std::cout << "\n===== QUAN LY GHI CHU =====\n"
@@ -42,7 +77,7 @@ static void printMenu(){
 
 static void runMenu(){
     NoteManager manager;
-    manager.loadNotesFromDisk();
+    printLoadReport(manager.loadNotesFromDisk());
 
     int choice = -1;
     while(choice != 0){
@@ -58,14 +93,25 @@ static void runMenu(){
 
         switch(choice){
             case 1: {
-                std::string title = readLine("Tieu de: ");
-                std::string content = readContent();
-                manager.createNote(title, content);
+                std::string title;
+                if(!askNewTitle(manager, title)){ std::cout << "Da huy.\n"; break; }
+
+                std::string content = readContent();          // chi go noi dung khi tieu de da on
+                NoteError err = manager.createNote(title, content);
+                if(err == NoteError::Ok) std::cout << "Da luu ghi chu.\n";
+                else std::cout << "Tao that bai: " << errorMessage(err) << "\n";
                 break;
             }
-            case 2:
-                manager.listNotes();
+            case 2: {
+                auto list = manager.listNotes();
+                if(list.empty()) std::cout << "Chua co ghi chu nao.\n";
+                for(const auto& n : list){
+                    std::cout << "-------------------------------------------\n"
+                            << "Title: " << n.title << "\n"
+                            << "Last Modified: " << n.lastModified << "\n";
+                }
                 break;
+            }
             case 3: {
                 auto results = manager.searchTitle(readLine("Tu khoa: "));
                 if(results.empty()) std::cout << "Khong tim thay.\n";
@@ -79,28 +125,40 @@ static void runMenu(){
                     std::cout << "- " << r.title << ": " << r.snippet << "\n";
                 break;
             }
-            case 5:
-                if(!manager.openNote(readLine("Tieu de: ")))
-                    std::cout << "Khong tim thay ghi chu.\n";
+            case 5: {
+                OpenResult r = manager.openNote(readLine("Tieu de: "));
+                if(r.error != NoteError::Ok){
+                    std::cout << "Mo that bai: " << errorMessage(r.error) << "\n";
+                    break;
+                }
+                if(r.stale) std::cout << "(Khong doc lai duoc file, hien ban luu trong bo nho)\n";
+                std::cout << "File content:\n" << r.note.getContent() << "\n";
                 break;
+            }
             case 6: {
                 std::string title = readLine("Tieu de can sua: ");
+                if(!manager.isTitleExists(title)){ std::cout << "Khong tim thay ghi chu.\n"; break; }
+
                 std::string content = readContent();
-                if(manager.editNote(title, content)) std::cout << "Da cap nhat.\n";
-                else std::cout << "Sua that bai.\n";
+                NoteError err = manager.editNote(title, content);
+                if(err == NoteError::Ok) std::cout << "Da cap nhat.\n";
+                else std::cout << "Sua that bai: " << errorMessage(err) << "\n";
                 break;
             }
             case 7: {
                 std::string oldT = readLine("Tieu de cu: ");
                 std::string newT = readLine("Tieu de moi: ");
-                if(manager.renameNote(oldT, newT)) std::cout << "Da doi ten.\n";
-                else std::cout << "Doi ten that bai.\n";
+                NoteError err = manager.renameNote(oldT, newT);
+                if(err == NoteError::Ok) std::cout << "Da doi ten.\n";
+                else std::cout << "Doi ten that bai: " << errorMessage(err) << "\n";
                 break;
             }
-            case 8:
-                if(manager.deleteNote(readLine("Tieu de can xoa: "))) std::cout << "Da xoa.\n";
-                else std::cout << "Xoa that bai.\n";
+            case 8: {
+                NoteError err = manager.deleteNote(readLine("Tieu de can xoa: "));
+                if(err == NoteError::Ok) std::cout << "Da xoa.\n";
+                else std::cout << "Xoa that bai: " << errorMessage(err) << "\n";
                 break;
+            }
             case 9: {
                 auto results = manager.listByTag(readLine("Tag: "));
                 if(results.empty()) std::cout << "Khong co ghi chu nao.\n";
@@ -128,7 +186,7 @@ static void runMenu(){
                 break;
             }
             case 13:
-                manager.loadNotesFromDisk();
+                printLoadReport(manager.loadNotesFromDisk());
                 break;
             case 0:
                 std::cout << "Tam biet!\n";
