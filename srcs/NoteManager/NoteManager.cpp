@@ -82,6 +82,9 @@ std::vector<NoteInfo> NoteManager::listNotes() const{
         result.push_back({note.getTitle(), note.getLastModified()});
 
     }
+    std::sort(result.begin(), result.end(), [](const NoteInfo& a, const NoteInfo& b){
+        return normalizeTitle(a.title) < normalizeTitle(b.title);
+    });
     return result;
 }
 
@@ -101,36 +104,6 @@ bool NoteManager::isTitleExists(const std::string &title) const{
 
 
 
-LoadReport NoteManager::loadNotesFromDisk(){
-    LoadReport report;
-    std::error_code ec;
-    fs::create_directories(root, ec);
-    if(ec){
-        report.ok = false;
-        return report;
-    }
-    std::vector<Note> fresh;
-    for(fs::directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)){
-        std::error_code ec2;
-        if(!it->is_regular_file(ec2) || it->path().extension() != ".md") continue;
-
-        std::string content;
-        if(!readFileToString(it->path(), content)){
-            report.skipped.push_back(it->path().filename().string());
-            continue;
-        }
-        fresh.push_back(Note(it->path().stem().string(), content, getFileTime(it->path())));
-    }
-    if(ec){
-        report.ok = false; // loi giua chung: RAM van nguyen
-        return report;
-    }
-    notesArray = std::move(fresh);
-    linkIndexDirty = true;
-    report.loaded = static_cast<int>(notesArray.size());
-    return report;
-
-}
 
 
 NoteError NoteManager::deleteNote(const std::string &title){
@@ -176,11 +149,8 @@ OpenResult NoteManager::openNote(const std::string& title){
 
 // Cap nhat tren disk lan RAM
 bool NoteManager::writeNoteContent(int i , const std::string& content){
-    std::ofstream outFile(makePath(notesArray[i].getTitle()));
-    outFile << content;
-    outFile.close();
-    if(outFile.fail()) return false;
-
+    if(!writeFileAtomic(makePath(notesArray[i].getTitle()), content)) return false;
+    
     notesArray[i].setContent(content);
     notesArray[i].setLastModified(getCurrentTime());
     linkIndexDirty = true;
@@ -191,25 +161,9 @@ bool NoteManager::writeNoteContent(int i , const std::string& content){
 NoteError NoteManager::editNote(const std::string& title, const std::string& newContent){
     int i = findIndex(title);
     if(i == -1) return NoteError::NotFound;
-    fs::path targetPath = makePath(notesArray[i].getTitle());
-    fs::path tempPath = targetPath;
-    tempPath += ".tmp";
-    std::error_code ec;
-
-    {
-        std::ofstream out(tempPath);
-        if(!out.is_open()){
-            return NoteError::WriteFailed;
-        }
-        out << newContent;
-    }
-    fs::rename(tempPath, targetPath, ec);
-    if(ec){
-        fs::remove(tempPath, ec); // Nếu đổi tên lỗi thì dọn file tạm
-        return NoteError::WriteFailed;
-    }
     return writeNoteContent(i, newContent) ? NoteError::Ok : NoteError::WriteFailed;
 }
+
 
 
 
@@ -262,4 +216,80 @@ void NoteManager::debugDump() const{
 
 
 
+LoadReport NoteManager::loadNotesFromDisk(){
+    LoadReport report;
+    
+    std::vector<Note> fresh;
+    if(!scanDisk(fresh, report.skipped)){
+        report.ok = false;
+        return report;
+    }
 
+    notesArray = std::move(fresh);
+    linkIndexDirty = true;
+    report.loaded = static_cast<int>(notesArray.size());
+    return report;
+}
+
+
+
+SyncReport NoteManager::refreshFromDisk(){
+    SyncReport rep;
+    std::vector<Note> fresh;
+    if(!scanDisk(fresh, rep.skipped)){
+        rep.ok = false;
+        return rep;
+    }
+    
+    // Duyet RAM
+    std::unordered_map<std::string, const Note*> oldByKey;
+    for(const Note& note : notesArray){
+        oldByKey[normalizeTitle(note.getTitle())] = &note;
+    }
+
+    // Duyet o dia
+    std::set<std::string> seen;
+    for(const Note& freshNote : fresh){
+        std::string key = normalizeTitle(freshNote.getTitle());
+        seen.insert(key);
+        
+        auto it = oldByKey.find(key);
+        if(it == oldByKey.end()){
+            rep.added.push_back(freshNote.getTitle());
+        }else if(it->second->getContent() != freshNote.getContent()){
+            rep.changed.push_back(freshNote.getTitle());
+        }
+        for(const Note& note: notesArray){
+            if(seen.count(normalizeTitle(note.getTitle())) == 0){
+                rep.removed.push_back(note.getTitle());
+            }
+        }
+
+        if(rep.hasChanges()){
+            notesArray = std::move(fresh);
+            linkIndexDirty = true;
+        }
+    }
+    return rep;
+
+}
+
+bool NoteManager::scanDisk(std::vector<Note>& out, std::vector<std::string>& skipped){
+    std::error_code ec;
+    fs::create_directories(root, ec);
+    if(ec) return false;
+
+    for(fs::directory_iterator it(root, ec), end; !ec && it != end; it.increment(ec)){
+        std::error_code ec2;
+        if(!it->is_regular_file(ec2) || it->path().extension() != ".md") continue;
+
+        const std::string stem = it->path().stem().string();
+        std::string content;
+        if(!checkTitle(stem) || !readFileToString(it->path(), content)){
+            skipped.push_back(it->path().filename().string());
+            continue;
+        }
+        out.push_back(Note(stem, content, getFileTime(it->path())));
+    }
+    return !ec; //Neu khong loi j thi tra ve true
+}

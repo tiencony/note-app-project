@@ -30,6 +30,13 @@ void cleanupTestFiles(){
     fs::remove_all(TEST_DIR, ec);
 }
 
+
+
+// Moi them vao cho phan createNote
+static void setup(NoteManager& m, const std::string& title, const std::string& content){
+    check(m.createNote(title, content) == NoteError::Ok, "setup: tao " + title);
+}
+
 namespace {
 
 // Dat o dau moi test: don truoc khi chay VA tu don khi ra khoi ham (ke ca khi return som).
@@ -480,4 +487,77 @@ void testRenameRefreshesCache(){
     m.renameNote("zz_test_old2", "zz_test_new2");
     check(m.searchContent("#ext2").size() == 1,
           "refresh: sau rename, cache cua note khong lien quan duoc lam moi tu dia");
+}
+
+
+
+//Test moi
+void testEditLeavesNoTmp(){
+    TestDir guard;
+    NoteManager m(TEST_DIR);
+    setup(m, "E", "v1");
+    check(m.editNote("E", "v2") == NoteError::Ok, "edit: sua E");
+
+    int tmpCount = 0;
+    for(const auto& e : fs::directory_iterator(TEST_DIR))
+        if(e.path().extension() == ".tmp") tmpCount++;
+    check(tmpCount == 0, "edit: khong de lai file .tmp");
+
+    std::string onDisk;
+    readFileToString(fs::path(TEST_DIR) / "E.md", onDisk);
+    check(onDisk == "v2", "edit: noi dung tren dia dung");
+}
+
+void testRenameReportsUnreadable(){
+    TestDir guard;
+    NoteManager m(TEST_DIR);
+    setup(m, "A", "x");
+    setup(m, "B", "[[A]]");
+    fs::remove(fs::path(TEST_DIR) / "B.md");        // B bien mat ngoai chuong trinh
+
+    RenameResult r = m.renameNote("A", "A2");
+    check(r.error == NoteError::Ok, "rename: van doi ten duoc A");
+    check(r.failedNotes.size() == 1 && r.failedNotes[0] == "B",
+          "rename: bao cao note khong doc duoc, khong bo qua im lang");
+}
+
+void testLoadSkipsBadNames(){
+    TestDir guard;
+    NoteManager m(TEST_DIR);
+    setup(m, "Tot", "x");
+    { std::ofstream out(fs::path(TEST_DIR) / "Bai 1.md.md"); out << "x"; }
+
+    LoadReport r = m.loadNotesFromDisk();
+    check(r.ok, "load: duyet thu muc thanh cong");
+    check(r.loaded == 1, "load: chi nap file co ten hop le");
+    check(r.skipped.size() == 1, "load: bao cao file bi bo qua");
+}
+
+void testControlCharTitle(){
+    TestDir guard;
+    NoteManager m(TEST_DIR);
+    check(m.createNote("a\tb", "x") == NoteError::InvalidTitle, "title: chan tab");
+    check(m.createNote("a\nb", "x") == NoteError::InvalidTitle, "title: chan xuong dong");
+}
+
+
+
+void testRefreshFromDisk(){
+    // TestDir tv;
+    NoteManager m(TEST_DIR);
+    setup(m, "A", "a1");
+    setup(m, "B", "b1");
+
+    // Mo phong ban thao tac ben ngoai bang Notepad: sua A, xoa B, them C
+    { std::ofstream out(fs::path(TEST_DIR) / "A.md"); out << "a2"; }
+    fs::remove(fs::path(TEST_DIR) / "B.md");
+    { std::ofstream out(fs::path(TEST_DIR) / "C.md"); out << "[[A]]"; }
+
+    SyncReport r = m.refreshFromDisk();
+    check(r.ok, "sync: quet thanh cong");
+    check(r.added.size() == 1 && r.added[0] == "C",   "sync: phat hien note moi");
+    check(r.changed.size() == 1 && r.changed[0] == "A", "sync: phat hien note bi sua");
+    check(r.removed.size() == 1 && r.removed[0] == "B", "sync: phat hien note bi xoa");
+    check(m.backlinks("A").size() == 1, "sync: chi muc link duoc lam moi (C tro toi A)");
+    check(!m.refreshFromDisk().hasChanges(), "sync: goi lai khong con thay doi");
 }

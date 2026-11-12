@@ -52,6 +52,20 @@ struct RenameResult {
     std::vector<std::string> failedNotes;    // note ghi link that bai (file cu van giu nguyen)
 };
 
+
+
+struct SyncReport {
+    bool ok = true;
+    std::vector<std::string> added;   // Các ghi chú mới xuất hiện trên đĩa
+    std::vector<std::string> removed; // Các ghi chú đã bị xóa ngoài đĩa
+    std::vector<std::string> changed; // Các ghi chú có nội dung thay đổi so với RAM
+    std::vector<std::string> skipped; // Các file rác hoặc tên không hợp lệ bị bỏ qua
+
+    bool hasChanges() const {
+        return !added.empty() || !removed.empty() || !changed.empty();
+    }
+};
+
 class NoteManager{
 private:
     std::vector<Note> notesArray;
@@ -72,25 +86,30 @@ private:
 
     bool writeNoteContent(int i , const std::string& content);
     void updateLinksAfterRename(const std::string& oldTitle, const std::string& newTitle, RenameResult& result);
+    
+    /*quét thư mục đĩa, lọc các file .md
+    trả về ds ghi chú thôi và các file bị bỏ qua
+    */ 
+    bool scanDisk(std::vector<Note>& out, std::vector<std::string>& skipped); 
 public:
     explicit NoteManager(std::filesystem::path rootDir = "vault/notes");
 
-    NoteError createNote(const std::string &title = "Untitled",
+    /*[[nodiscard]]*/ NoteError createNote(const std::string &title = "Untitled",
                      const std::string &content = "No content");
 
-    NoteError validateNewTitle(const std::string& title) const;
+    /*[[nodiscard]]*/ NoteError validateNewTitle(const std::string& title) const;
     bool isTitleExists(const std::string& title) const;
     std::vector<NoteInfo> listNotes() const; 
     bool checkTitle(const std::string &input) const;
 
 
-    LoadReport loadNotesFromDisk();    
+    /*[[nodiscard]]*/ LoadReport loadNotesFromDisk();    
 
-    OpenResult openNote(const std::string &title);
+    /*[[nodiscard]]*/ OpenResult openNote(const std::string &title);
 
-    NoteError editNote(const std::string &title, const std::string &newContent);
-    NoteError deleteNote(const std::string &title);
-    RenameResult renameNote(const std::string& oldTitle, const std::string& newTitle);
+    /*[[nodiscard]]*/ NoteError editNote(const std::string &title, const std::string &newContent);
+    /*[[nodiscard]]*/ NoteError deleteNote(const std::string &title);
+    /*[[nodiscard]]*/ RenameResult renameNote(const std::string& oldTitle, const std::string& newTitle);
 
     //search
     std::vector<SearchResult> searchContent(const std::string& keyword) const;
@@ -105,6 +124,8 @@ public:
     std::vector<std::string> backlinks(const std::string& title) const;
     std::vector<BrokenLink> brokenLinks() const;
 
+
+    SyncReport refreshFromDisk();
     void debugDump() const;   // in trang thai trong RAM (de debug)
 };
 

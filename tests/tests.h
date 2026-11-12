@@ -35,4 +35,8 @@ void testRenameRefreshesCache();
 
 
 
-
+void testEditLeavesNoTmp();
+void testRenameReportsUnreadable();
+void testLoadSkipsBadNames();
+void testControlCharTitle();
+void testRefreshFromDisk();

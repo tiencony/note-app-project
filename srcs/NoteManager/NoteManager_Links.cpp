@@ -4,6 +4,10 @@
 #include <iostream>
 
 
+/*: Xóa toàn bộ chỉ mục cũ, đăng ký lại từ điển tiêu đề chuẩn hóa (titleByKey),
+sau đó quét qua nội dung từng ghi chú để thiết lập 
+liên kết xuôi (linksBySource) và liên kết ngược (backlinksByTitle).
+*/
 void NoteManager::rebuildLinkIndex() const{
     backlinksByTitle.clear();
     linksBySource.clear();
@@ -69,6 +73,7 @@ std::vector<BrokenLink> NoteManager::brokenLinks() const{
     return results;
 }
 
+
 void NoteManager::ensureLinkIndex() const{
     if(linkIndexDirty){
         rebuildLinkIndex();
@@ -85,8 +90,10 @@ void NoteManager::updateLinksAfterRename(const std::string& oldTitle,
 
     for(std::size_t i = 0; i < notesArray.size(); i++){
         const int idx = static_cast<int>(i);
-        if(!reloadNote(idx)) continue; // Ko doc dc thi bo qua, ko ghi de
-
+        if(!reloadNote(idx)){
+            result.failedNotes.push_back(notesArray[i].getTitle());
+            continue;
+        } // note ko cap nhat dc (ko doc hoac ko ghi duoc)
 
     
         const std::string replaced = replaceLink(notesArray[i].getContent(), oldTitle, newTitle);

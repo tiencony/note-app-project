@@ -81,6 +81,11 @@ static void runMenu(){
 
     int choice = -1;
     while(choice != 0){
+        SyncReport sync = manager.refreshFromDisk();
+        if(sync.hasChanges()){
+            std::cout << "\n[Dong bo] +" << sync.added.size() << " moi, "
+                    << sync.changed.size() << " doi, -" << sync.removed.size() << " xoa\n";
+        }
         printMenu();
         if(!(std::cin >> choice)){
             std::cin.clear();
