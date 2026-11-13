@@ -3,6 +3,9 @@
 
 #include <cctype>
 #include <algorithm>
+#include <vector>
+#include <string>
+
 
 namespace {
     bool canPrecedeTag(char c){
@@ -67,7 +70,7 @@ std::string normalizeTitle(const std::string& s){
     return out;
 }
 
-
+/*
 std::set<std::string> extractLinks(const std::string& content){
     std::set<std::string> links;
     std::size_t pos = 0;
@@ -92,6 +95,42 @@ std::set<std::string> extractLinks(const std::string& content){
     }
     return links;
 }
+*/
+
+std::vector<LinkSpan> findLinkSpans(const std::string& content){
+    std::vector<LinkSpan> result;
+    std::size_t pos = 0;
+    
+    while(true){
+        std::size_t open = content.find("[[", pos);
+        if(open == std::string::npos) break;
+        std::size_t close = content.find("]]", open + 2);
+        if(close == std::string::npos) break;
+        
+        std::string_view inner(content.data() + open + 2, close - (open + 2));
+
+        if(inner.find_first_of("\n[") != std::string_view::npos){
+            pos = open + 1;
+            continue;
+        }
+        result.push_back({open + 2, close});
+        pos = close + 2;
+
+    }
+   return result;
+}
+
+std::set<std::string> extractLinks(const std::string& content){
+    std::set<std::string> links;
+    for(const LinkSpan& s : findLinkSpans(content)){
+        std::string link = trimSpaces(parseLink(content.substr(s.innerBegin, s.innerEnd - s.innerBegin)).target);
+        if(!link.empty()){
+            links.insert(link);
+        }
+    }
+    return links;
+}
+
 
 
 
@@ -101,31 +140,37 @@ std::string replaceLink(const std::string& content, const std::string& oldTitle,
     if(oldkey.empty()) return content;
 
     std::string results;
-    std::size_t copied = 0;
-    std::size_t pos = 0;
+    std::size_t lastCopiedPos = 0;
 
-    while(true){
-        std::size_t open = content.find("[[", pos);
-        if(open == std::string::npos) break;
+    
+    for(const LinkSpan& s : findLinkSpans(content)){
+        const std::string inner = content.substr(s.innerBegin, s.innerEnd - s.innerBegin);
+        if(normalizeTitle(inner) != oldkey) continue;
 
-        std::size_t close = content.find("]]", open + 2);
-        if(close == std::string::npos) break;
-
-        std::string link = content.substr(open + 2, close - (open + 2));
-
-        if(link.find_first_of("\n[") != std::string::npos){
-            pos = open + 1;
-            continue;
-        }
-        pos = close + 2;
-        if(normalizeTitle(link) == oldkey){
-            results.append(content, copied, open + 2 - copied);
-            results += newTitle;
-            copied = close;
-        }
+        results.append(content, lastCopiedPos, s.innerBegin - lastCopiedPos);
+        results += newTitle;
+        lastCopiedPos = s.innerEnd;
     }
-    results.append(content, copied, std::string::npos);
+    results.append(content, lastCopiedPos, std::string::npos);
     return results;
 }
 
 
+struct LinkParts{
+    std::string target; // Da cat dau "|"
+    std::string suffix; // Sau dau "|"
+};
+
+LinkParts parseLink(std::string& inner){
+    LinkParts result;
+    std::size_t dividePos = inner.find_first_of("|#");
+
+    if(dividePos == std::string::npos){
+        result.target = trimSpaces(inner);
+        result.suffix = "";
+    }else{
+        result.target = trimSpaces(inner.substr(0, dividePos));
+        result.suffix = inner.substr(dividePos);
+    }
+    return result;
+}

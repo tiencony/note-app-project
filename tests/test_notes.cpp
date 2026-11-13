@@ -543,7 +543,7 @@ void testControlCharTitle(){
 
 
 void testRefreshFromDisk(){
-    // TestDir tv;
+    TestDir tv;
     NoteManager m(TEST_DIR);
     setup(m, "A", "a1");
     setup(m, "B", "b1");

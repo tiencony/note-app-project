@@ -3,6 +3,10 @@
 
 #include <cstddef>
 #include <string>
+#include <vector>
+
+
+
 
 bool equalsIgnoreCase(const std::string& str1, const std::string& str2);
 std::size_t findIgnoreCase(const std::string& text, const std::string& keyword);

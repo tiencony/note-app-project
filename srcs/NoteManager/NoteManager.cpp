@@ -91,7 +91,7 @@ std::vector<NoteInfo> NoteManager::listNotes() const{
 
 bool NoteManager::checkTitle(const std::string &input) const{
     if (input.empty() || input.find_first_not_of(' ') == std::string::npos) return false;
-    if (input.find_first_of("/\\:*?\"<>|") != std::string::npos) return false;
+    if (input.find_first_of("/\\:*?\"<>|#^[]") != std::string::npos) return false;
     if (input.back() == '.' || input.back() == ' ') return false;
     if(input.front() == ' ') return false;
     if(input.size() > 3 && equalsIgnoreCase(input.substr(input.size() - 3), ".md")) return false;
@@ -103,13 +103,11 @@ bool NoteManager::isTitleExists(const std::string &title) const{
 }
 
 
-
-
-
 NoteError NoteManager::deleteNote(const std::string &title){
     int i = findIndex(title);
     if (i == -1) return NoteError::NotFound;
 
+    // Xoa tren disk
     std::error_code ec;
     fs::remove(makePath(notesArray[i].getTitle()), ec);
     if (ec) return NoteError::DeleteFailed;
@@ -120,6 +118,8 @@ NoteError NoteManager::deleteNote(const std::string &title){
     return NoteError::Ok;
 }
 
+
+// Tim o tren RAM
 int NoteManager::findIndex(const std::string& title) const{
     const std::string key = normalizeTitle(title);
     for(std::size_t i = 0; i < notesArray.size(); i++){
@@ -214,8 +214,6 @@ void NoteManager::debugDump() const{
 
 
 
-
-
 LoadReport NoteManager::loadNotesFromDisk(){
     LoadReport report;
     
@@ -232,47 +230,6 @@ LoadReport NoteManager::loadNotesFromDisk(){
 }
 
 
-
-SyncReport NoteManager::refreshFromDisk(){
-    SyncReport rep;
-    std::vector<Note> fresh;
-    if(!scanDisk(fresh, rep.skipped)){
-        rep.ok = false;
-        return rep;
-    }
-    
-    // Duyet RAM
-    std::unordered_map<std::string, const Note*> oldByKey;
-    for(const Note& note : notesArray){
-        oldByKey[normalizeTitle(note.getTitle())] = &note;
-    }
-
-    // Duyet o dia
-    std::set<std::string> seen;
-    for(const Note& freshNote : fresh){
-        std::string key = normalizeTitle(freshNote.getTitle());
-        seen.insert(key);
-        
-        auto it = oldByKey.find(key);
-        if(it == oldByKey.end()){
-            rep.added.push_back(freshNote.getTitle());
-        }else if(it->second->getContent() != freshNote.getContent()){
-            rep.changed.push_back(freshNote.getTitle());
-        }
-        for(const Note& note: notesArray){
-            if(seen.count(normalizeTitle(note.getTitle())) == 0){
-                rep.removed.push_back(note.getTitle());
-            }
-        }
-
-        if(rep.hasChanges()){
-            notesArray = std::move(fresh);
-            linkIndexDirty = true;
-        }
-    }
-    return rep;
-
-}
 
 bool NoteManager::scanDisk(std::vector<Note>& out, std::vector<std::string>& skipped){
     std::error_code ec;
@@ -292,4 +249,47 @@ bool NoteManager::scanDisk(std::vector<Note>& out, std::vector<std::string>& ski
         out.push_back(Note(stem, content, getFileTime(it->path())));
     }
     return !ec; //Neu khong loi j thi tra ve true
+}
+
+
+SyncReport NoteManager::refreshFromDisk(){
+    SyncReport rep;
+    std::vector<Note> fresh;
+    if(!scanDisk(fresh, rep.skipped)){
+        rep.ok = false;
+        return rep;
+    }
+    
+    // Duyet RAM
+    std::unordered_map<std::string, const Note*> oldByKey;
+    oldByKey.reserve(notesArray.size());
+    for(const Note& note : notesArray){
+        oldByKey[normalizeTitle(note.getTitle())] = &note;
+    }
+
+    // Duyet o dia
+    std::set<std::string> seen;
+    for(const Note& freshNote : fresh){
+        std::string key = normalizeTitle(freshNote.getTitle());
+        seen.insert(key);
+        
+        auto it = oldByKey.find(key);
+        if(it == oldByKey.end()){
+            rep.added.push_back(freshNote.getTitle());
+        }else if(it->second->getContent() != freshNote.getContent()){
+            rep.changed.push_back(freshNote.getTitle());
+        }
+
+    }
+    for(const Note& note : notesArray){
+        if(seen.count(normalizeTitle(note.getTitle())) == 0){
+            rep.removed.push_back(note.getTitle());
+        }
+    }
+    if(rep.hasChanges()){
+        notesArray = std::move(fresh);
+        linkIndexDirty = true;
+    }
+    return rep;
+
 }
