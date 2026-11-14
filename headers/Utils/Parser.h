@@ -14,11 +14,15 @@ std::string replaceLink(const std::string& content, const std::string& oldTitle,
 
 struct LinkSpan{
     std::size_t innerBegin; // Vi tri ngay sau "[["
-    std::size_t innerEnd;   // Vi tri cua "]]"
+    std::size_t innerEnd;   // Vi tri truoc "]]"
 };
 
+struct LinkParts{
+    std::string target; // Da cat dau "|, #"
+    std::string suffix; // Sau dau "|, #"
+};
+
+LinkParts parseLink(const std::string& inner);
 std::vector<LinkSpan> findLinkSpans(const std::string& content);
-
-
 
 #endif

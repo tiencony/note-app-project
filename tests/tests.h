@@ -40,3 +40,16 @@ void testRenameReportsUnreadable();
 void testLoadSkipsBadNames();
 void testControlCharTitle();
 void testRefreshFromDisk();
+
+
+
+void testParseLink();
+void testFindLinkSpans();
+void testLinksAlias();
+void testReplaceLinkAlias();
+void testTagsAndLinks();
+void testTitleLinkChars();
+void testAliasLinksInManager();
+void testRenameKeepsSuffix();
+void testRenameSelfLinkAlias();
+void testTagsInsideLinksInManager();

@@ -26,6 +26,20 @@ int main(){
     testLoadSkipsBadNames();
     testControlCharTitle();
     testRefreshFromDisk();
+
+
+
+
+    testParseLink();
+    testFindLinkSpans();
+    testLinksAlias();
+    testReplaceLinkAlias();
+    testTagsAndLinks();
+    testTitleLinkChars();
+    testAliasLinksInManager();
+    testRenameKeepsSuffix();
+    testRenameSelfLinkAlias();
+    testTagsInsideLinksInManager();
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";
     return failed == 0 ? 0 : 1;

@@ -14,18 +14,24 @@ namespace {
 }
 
 
-
 std::set<std::string> extractTags(const std::string& content){
     std::set<std::string> tags;
-    const std::size_t len = content.size();
+    std::vector<LinkSpan> links = findLinkSpans(content);
 
+    auto isInLink = [&](std::size_t pos){
+        for(const auto& link : links){
+            // Vùng link tính từ dấu [ đầu tiên đến dấu ] cuối cùng 
+            if(pos >= (link.innerBegin - 2) && pos <= (link.innerEnd + 2)){
+                return true;
+            }
+        }     
+        return false;
+    };
+    const std::size_t len = content.size();
     for(std::size_t i = 0; i < len; i++){
         if(content[i] != '#') continue;
-
-        
-        if(i != 0 && !canPrecedeTag(content[i - 1])){
-            continue;
-        }
+        if(i != 0 && !canPrecedeTag(content[i - 1])) continue;
+        if(isInLink(i)) continue;
 
         // check sau # phai la chu hoac so
         std::size_t j = i + 1;
@@ -43,11 +49,10 @@ std::set<std::string> extractTags(const std::string& content){
         }
         tags.insert(tag);
         i = j - 1;
+
     }
     return tags;
 }
-
-
 
 
 
@@ -60,6 +65,8 @@ std::string normalizeTag(const std::string& tag){
 }
 
 
+
+
 std::string normalizeTitle(const std::string& s){
     std::string out = trimSpaces(s);
     std::transform(out.begin(), out.end(), out.begin(),
@@ -70,32 +77,19 @@ std::string normalizeTitle(const std::string& s){
     return out;
 }
 
-/*
-std::set<std::string> extractLinks(const std::string& content){
-    std::set<std::string> links;
-    std::size_t pos = 0;
+LinkParts parseLink(const std::string& inner){
+    LinkParts result;
+    std::size_t dividePos = inner.find_first_of("|#");
 
-    while(true){
-        std::size_t open = content.find("[[", pos);
-        if(open == std::string::npos) break;
-
-        std::size_t close = content.find("]]", open + 2);
-        if(close == std::string::npos) break;
-
-        std::string link = content.substr(open + 2, close - (open + 2));
-
-        if(link.find_first_of("\n[") != std::string::npos){
-            pos = open + 1;
-            continue;
-        }
-        pos = close + 2;
-        link = trimSpaces(link);
-        if(link.empty()) continue;
-        links.insert(link);
+    if(dividePos == std::string::npos){
+        result.target = trimSpaces(inner);
+        result.suffix = "";
+    }else{
+        result.target = trimSpaces(inner.substr(0, dividePos));
+        result.suffix = inner.substr(dividePos);
     }
-    return links;
+    return result;
 }
-*/
 
 std::vector<LinkSpan> findLinkSpans(const std::string& content){
     std::vector<LinkSpan> result;
@@ -133,7 +127,6 @@ std::set<std::string> extractLinks(const std::string& content){
 
 
 
-
 // Chi doi tren RAM 
 std::string replaceLink(const std::string& content, const std::string& oldTitle, const std::string& newTitle){
     const std::string oldkey = normalizeTitle(oldTitle);
@@ -144,33 +137,22 @@ std::string replaceLink(const std::string& content, const std::string& oldTitle,
 
     
     for(const LinkSpan& s : findLinkSpans(content)){
-        const std::string inner = content.substr(s.innerBegin, s.innerEnd - s.innerBegin);
-        if(normalizeTitle(inner) != oldkey) continue;
+        std::string inner = content.substr(s.innerBegin, s.innerEnd - s.innerBegin);
+        
+        LinkParts parts = parseLink(inner); // tach target va suffix
 
-        results.append(content, lastCopiedPos, s.innerBegin - lastCopiedPos);
-        results += newTitle;
-        lastCopiedPos = s.innerEnd;
+        if(normalizeTitle(parts.target) != oldkey) continue;
+        
+        // Noi tu moc cu den truoc dau [[
+        results.append(content, lastCopiedPos, s.innerBegin - 2 - lastCopiedPos); // Tru 2 cho [[
+        results += "[[" + newTitle + parts.suffix + "]]";
+        lastCopiedPos = s.innerEnd + 2; // Cap nhat khi da quet xong sau ]]
     }
+    // Noi phan duoi con lai
     results.append(content, lastCopiedPos, std::string::npos);
     return results;
 }
 
 
-struct LinkParts{
-    std::string target; // Da cat dau "|"
-    std::string suffix; // Sau dau "|"
-};
 
-LinkParts parseLink(std::string& inner){
-    LinkParts result;
-    std::size_t dividePos = inner.find_first_of("|#");
 
-    if(dividePos == std::string::npos){
-        result.target = trimSpaces(inner);
-        result.suffix = "";
-    }else{
-        result.target = trimSpaces(inner.substr(0, dividePos));
-        result.suffix = inner.substr(dividePos);
-    }
-    return result;
-}

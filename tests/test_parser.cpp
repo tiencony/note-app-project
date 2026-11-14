@@ -76,3 +76,122 @@ void testReplaceLink(){
     check(replaceLink("[[]]", "", "Z") == "[[]]",
           "replaceLink: ten cu rong thi khong doi gi");
 }
+
+
+
+// Ham tro giup: in gia tri thuc te khi sai
+static void checkParse(const std::string& inner,
+                       const std::string& target, const std::string& suffix){
+    LinkParts p = parseLink(inner);
+    const bool ok = (p.target == target && p.suffix == suffix);
+    check(ok, "parseLink: [" + inner + "]");
+    if(!ok){
+        std::cout << "    thuc te : target=[" << p.target << "] suffix=[" << p.suffix << "]\n"
+                  << "    mong doi: target=[" << target   << "] suffix=[" << suffix   << "]"
+                  << std::endl;
+    }
+}
+
+static void checkReplace(const std::string& in, const std::string& expected,
+                         const std::string& name){
+    const std::string got = replaceLink(in, "A", "B");
+    check(got == expected, "replaceLink: " + name);
+    if(got != expected){
+        std::cout << "    thuc te : [" << got      << "]\n"
+                  << "    mong doi: [" << expected << "]" << std::endl;
+    }
+}
+
+void testParseLink(){
+    checkParse("A",           "A",   "");
+    checkParse(" A ",         "A",   "");
+    checkParse("A|b",         "A",   "|b");
+    checkParse("A#h",         "A",   "#h");
+    checkParse("A#h|b",       "A",   "#h|b");       // '#' den truoc
+    checkParse("A|b#c",       "A",   "|b#c");       // '|' den truoc, '#' chi la chu trong bi danh
+    checkParse("A | b ",      "A",   "| b ");       // suffix giu nguyen ca dau cach
+    checkParse(" A.md | x ",  "A.md","| x ");       // target chua cat duoi .md (de normalizeTitle lam)
+    checkParse("A#",          "A",   "#");
+    checkParse("#h",          "",    "#h");         // target rong: nhay toi muc trong chinh ghi chu
+    checkParse("|b",          "",    "|b");
+    checkParse("",            "",    "");
+    checkParse("   ",         "",    "");
+}
+
+void testFindLinkSpans(){
+    const std::string s = "xx [[A]] yy [[B|c]]";
+    auto spans = findLinkSpans(s);
+    check(spans.size() == 2, "findLinkSpans: 2 link");
+    if(spans.size() == 2){
+        check(s.substr(spans[0].innerBegin, spans[0].innerEnd - spans[0].innerBegin) == "A",
+              "findLinkSpans: noi dung link thu nhat");
+        check(s.substr(spans[1].innerBegin, spans[1].innerEnd - spans[1].innerBegin) == "B|c",
+              "findLinkSpans: noi dung link thu hai");
+    }
+    check(findLinkSpans("[[a\nb]]").empty(),     "findLinkSpans: link ngat dong khong tinh");
+    check(findLinkSpans("[[chua dong").empty(),  "findLinkSpans: thieu ]]");
+    check(findLinkSpans("[[a [[b]]").size() == 1,"findLinkSpans: link hong khong nuot link dung");
+    check(findLinkSpans("[[[A]]").size() == 1,   "findLinkSpans: ba dau [ van lay duoc link A");
+    check(findLinkSpans("[[]]").size() == 1,     "findLinkSpans: span rong van duoc tra ve (extractLinks tu loc)");
+}
+
+void testLinksAlias(){
+    using Set = std::set<std::string>;
+
+    check(extractLinks("[[A|x]] [[A#h]] [[A]]") == Set{"A"},
+          "extractLinks: 3 cach viet cung mot dich -> 1 phan tu");
+    check(extractLinks("[[#h]] [[|x]]").empty(),
+          "extractLinks: target rong bi bo qua");
+    check(extractLinks("[[A#h|x]] [[B]]") == Set{"A", "B"},
+          "extractLinks: link co suffix va link thuong");
+    check(extractLinks("[[ A | x ]]") == Set{"A"},
+          "extractLinks: cat dau cach quanh target");
+    check(extractLinks("[[A.md|x]]") == Set{"A.md"},
+          "extractLinks: tra ve target nguyen chinh ta (chuan hoa lam o noi khac)");
+    check(extractLinks("[[C|A]]") == Set{"C"},
+          "extractLinks: chu trong bi danh khong phai dich");
+}
+
+void testReplaceLinkAlias(){
+    checkReplace("[[A]]",                  "[[B]]",                  "link thuong");
+    checkReplace("[[A|bi danh]]",          "[[B|bi danh]]",          "giu bi danh");
+    checkReplace("[[A#Muc 1]]",            "[[B#Muc 1]]",            "giu heading");
+    checkReplace("[[A#Muc 1|bi danh]]",    "[[B#Muc 1|bi danh]]",    "giu heading va bi danh");
+    checkReplace("[[ a.md | x ]]",         "[[B| x ]]",              "khop theo khoa, giu suffix");
+    checkReplace("[[ A ]]",                "[[B]]",                  "bo dau cach trong ngoac khi khong co suffix");
+    checkReplace("[[C|A]]",                "[[C|A]]",                "chu A trong bi danh khong doi");
+    checkReplace("[[#A]]",                 "[[#A]]",                 "target rong khong doi");
+    checkReplace("[[AB]]",                 "[[AB]]",                 "khong khop tien to");
+    checkReplace("A [[A]] A",              "A [[B]] A",              "chi doi trong [[ ]]");
+    checkReplace("[[A]] va [[a]] va [[A.md]]", "[[B]] va [[B]] va [[B]]", "nhieu cach viet cung dich");
+    checkReplace("[[A]][[A]]",             "[[B]][[B]]",             "hai link sat nhau");
+    checkReplace("[[A]]\n[[A|x]]\n",       "[[B]]\n[[B|x]]\n",       "nhieu dong");
+    checkReplace("[[a\nb]]",               "[[a\nb]]",               "link hong khong doi");
+    checkReplace("[[A",                    "[[A",                    "thieu ]] khong doi");
+    checkReplace("",                       "",                       "chuoi rong");
+
+    check(replaceLink("[[A]]", "", "B") == "[[A]]",    "replaceLink: ten cu rong thi khong doi");
+    check(replaceLink("[[A]]", "   ", "B") == "[[A]]", "replaceLink: ten cu toan dau cach thi khong doi");
+
+    // Doi roi, ten cu khong con, ten moi co mat
+    const std::string out = replaceLink("[[A|x]] [[A#h]]", "A", "B");
+    check(extractLinks(out) == std::set<std::string>{"B"},
+          "replaceLink: sau khi doi chi con link toi B");
+    check(replaceLink(out, "A", "B") == out,
+          "replaceLink: goi lai lan hai khong doi gi them");
+}
+
+void testTagsAndLinks(){
+    using Tags = std::set<std::string>;
+
+    check(extractTags("[[Note #Muc]]").empty(),
+          "extractTags: dau # co dau cach truoc, nam trong link -> khong phai tag");
+    check(extractTags("[[Note#Muc]]").empty(),
+          "extractTags: heading trong link khong phai tag");
+    check(extractTags("#tag [[Note]] #tag2") == Tags{"tag", "tag2"},
+          "extractTags: tag ngoai link van lay duoc");
+    check(extractTags("[[A#h]] #real") == Tags{"real"},
+          "extractTags: link co heading roi toi tag that");
+    check(extractTags("[[A|#x]]").empty(),
+          "extractTags: # trong bi danh khong phai tag");
+}

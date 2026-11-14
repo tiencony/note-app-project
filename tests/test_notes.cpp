@@ -561,3 +561,87 @@ void testRefreshFromDisk(){
     check(m.backlinks("A").size() == 1, "sync: chi muc link duoc lam moi (C tro toi A)");
     check(!m.refreshFromDisk().hasChanges(), "sync: goi lai khong con thay doi");
 }
+
+
+
+void testTitleLinkChars(){
+    TestDir tv;
+    NoteManager m(TEST_DIR);
+
+    for(const std::string bad : {"a#b", "a^b", "a[b", "a]b", "a|b"}){
+        check(m.createNote(bad, "x") == NoteError::InvalidTitle,
+              "title: chan ky tu [" + bad + "]");
+    }
+    check(m.createNote("a b-c_d (1)", "x") == NoteError::Ok,
+          "title: ten binh thuong co dau cach, gach, ngoac don van duoc");
+
+    // File ngoai chuong trinh co ten cam -> bi bo qua khi nap
+    { std::ofstream out(fs::path(TEST_DIR) / "a#b.md"); out << "x"; }
+    LoadReport r = m.loadNotesFromDisk();
+    check(r.ok && r.loaded == 1, "load: chi nap file co ten hop le");
+    check(r.skipped.size() == 1 && r.skipped[0] == "a#b.md",
+          "load: bao cao file ten co '#' bi bo qua");
+}
+
+void testAliasLinksInManager(){
+    TestDir tv;
+    NoteManager m(TEST_DIR);
+    setup(m, "Y", "noi dung Y");
+    setup(m, "X", "xem [[Y|bi danh]] va [[Y#Muc 1]]");
+
+    check(m.backlinks("Y").size() == 1, "alias: X tro toi Y (hai cach viet gop lai 1)");
+    check(m.brokenLinks().empty(),      "alias: link co suffix khong bi coi la hong");
+
+    check(m.deleteNote("Y") == NoteError::Ok, "alias: xoa Y");
+    auto broken = m.brokenLinks();
+    check(broken.size() == 1 && broken[0].from == "X" && broken[0].target == "Y",
+          "alias: link hong bao dich 'Y', khong phai 'Y|bi danh'");
+}
+
+void testRenameKeepsSuffix(){
+    TestDir tv;
+    NoteManager m(TEST_DIR);
+    setup(m, "Y", "noi dung Y");
+    setup(m, "X", "xem [[Y|bi danh]] va [[Y#Muc 1|dd]]");
+    setup(m, "Z", "[[ y.md ]]");
+    setup(m, "W", "[[W2|Y]]");              // 'Y' chi la bi danh, dich la W2 (khong ton tai)
+
+    RenameResult r = m.renameNote("Y", "Y2");
+    check(r.error == NoteError::Ok, "rename+alias: doi ten Y -> Y2");
+    check(r.updatedNotes == 2 && r.failedNotes.empty(),
+          "rename+alias: cap nhat dung 2 ghi chu (X va Z)");
+
+    // openNote doc lai tu dia nen kiem luon noi dung that tren dia
+    check(m.openNote("X").note.getContent() == "xem [[Y2|bi danh]] va [[Y2#Muc 1|dd]]",
+          "rename+alias: X giu bi danh va heading, doi dich");
+    check(m.openNote("Z").note.getContent() == "[[Y2]]",
+          "rename+alias: Z viet kieu ' y.md ' van duoc doi");
+    check(m.openNote("W").note.getContent() == "[[W2|Y]]",
+          "rename+alias: W giu nguyen vi 'Y' chi nam trong bi danh");
+
+    auto broken = m.brokenLinks();
+    check(broken.size() == 1 && broken[0].target == "W2",
+          "rename+alias: chi con link hong cua W (toi W2)");
+}
+
+void testRenameSelfLinkAlias(){
+    TestDir tv;
+    NoteManager m(TEST_DIR);
+    setup(m, "S", "tu tro [[S|me]]");
+
+    RenameResult r = m.renameNote("S", "S2");
+    check(r.error == NoteError::Ok && r.updatedNotes == 1,
+          "rename+self: ghi chu tu tro vao chinh no duoc cap nhat");
+    check(m.openNote("S2").note.getContent() == "tu tro [[S2|me]]",
+          "rename+self: noi dung moi dung");
+}
+
+void testTagsInsideLinksInManager(){
+    TestDir tv;
+    NoteManager m(TEST_DIR);
+    setup(m, "T1", "[[A#h]] #real");
+    setup(m, "T2", "[[B #h]]");
+
+    check(m.listByTag("real").size() == 1, "tag+link: tag that duoc tim thay");
+    check(m.listByTag("h").empty(),        "tag+link: heading trong link khong thanh tag");
+}

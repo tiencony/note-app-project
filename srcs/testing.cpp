@@ -2,10 +2,9 @@
 #include "Utils/StringUtils.h"   // extractLinks goi trimSpaces
 
 #include <cctype>
-#include <algorithm>
 #include <vector>
 #include <string>
-
+#include <string_view>
 
 namespace {
     bool canPrecedeTag(char c){
@@ -82,60 +81,7 @@ std::string replaceLink(const std::string& content, const std::string& oldTitle,
 
 
 struct LinkParts{
-    std::string target; // Da cat dau "|"
-    std::string suffix; // Sau dau "|"
+    std::string target; // Da cat dau "|, #"
+    std::string suffix; // Sau dau "|, #"
 };
 
-LinkParts parseLink(std::string& inner){
-    LinkParts result;
-    std::size_t dividePos = inner.find_first_of("|#");
-
-    if(dividePos == std::string::npos){
-        result.target = trimSpaces(inner);
-        result.suffix = "";
-    }else{
-        result.target = trimSpaces(inner.substr(0, dividePos));
-        result.suffix = inner.substr(dividePos);
-    }
-    return result;
-}
-
-
-std::set<std::string> extractTags(const std::string& content){
-    std::set<std::string> tags;
-    std::vector<LinkSpan> links = findLinkSpans(content);
-
-    auto isInLink = [&](std::size_t pos){
-        for(const auto& link : links){
-            if(pos >= (link.innerBegin - 2) && pos <= (link.innerEnd + 2)){
-                return true;
-            }
-        }
-        return false;
-    };
-    const std::size_t len = content.size();
-    for(std::size_t i = 0; i < len; i++){
-        if(content[i] != '#') continue;
-        if(i != 0 && !canPrecedeTag(content[i - 1])) continue;
-        if(isInLink(i)) continue;
-
-        // check sau # phai la chu hoac so
-        std::size_t j = i + 1;
-        if(j >= len || !std::isalnum(static_cast<unsigned char>(content[j]))){
-            continue;
-        }
-
-        std::string tag;
-        while(j < len){
-            unsigned char ch = content[j];
-            if(std::isalnum(ch) || ch == '_' || ch == '-'){
-                tag += static_cast<char>(std::tolower(ch));
-                j++;
-            }else break;
-        }
-        tags.insert(tag);
-        i = j - 1;
-
-    }
-    return tags;
-}
