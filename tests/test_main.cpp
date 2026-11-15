@@ -40,6 +40,9 @@ int main(){
     testRenameKeepsSuffix();
     testRenameSelfLinkAlias();
     testTagsInsideLinksInManager();
+
+
+    testSplitFrontmatter(); 
     std::cout << "\nKet qua: " << (failed == 0 ? "TAT CA DEU PASS" : "CO TEST THAT BAI")
               << " (" << failed << " that bai)\n";
     return failed == 0 ? 0 : 1;

@@ -195,3 +195,92 @@ void testTagsAndLinks(){
     check(extractTags("[[A|#x]]").empty(),
           "extractTags: # trong bi danh khong phai tag");
 }
+
+
+
+
+
+
+void testSplitFrontmatter() {
+    // 1. Trường hợp chuẩn (xuống dòng Unix \n)
+    {
+        const std::string content = "---\ncreated: 2026-11-14\ntags: [cpp, oop]\n---\nNoi dung than bai";
+        FrontmatterBlock b = splitFrontmatter(content);
+        check(b.hasFrontmatter, "splitFrontmatter: nhan dien khoi chuan");
+        check(b.lines.size() == 2 && b.lines[0] == "created: 2026-11-14" && b.lines[1] == "tags: [cpp, oop]",
+              "splitFrontmatter: tach dung cac dong ben trong");
+        check(content.substr(b.bodyOffset) == "Noi dung than bai",
+              "splitFrontmatter: bodyOffset tro dung dau than bai");
+        // check(bodyOffset(content) == b.bodyOffset,
+        //       "bodyOffset: khop voi splitFrontmatter");
+    }
+
+    // 2. Xuống dòng kiểu Windows (\r\n)
+    {
+        const std::string content = "---\r\ncreated: x\r\n---\r\nbody";
+        FrontmatterBlock b = splitFrontmatter(content);
+        check(b.hasFrontmatter, "splitFrontmatter: chiu duoc xuong dong \\r\\n");
+        check(b.lines.size() == 1 && b.lines[0] == "created: x",
+              "splitFrontmatter: cat bo \\r o cuoi dong");
+        check(content.substr(b.bodyOffset) == "body",
+              "splitFrontmatter: bodyOffset nhay qua ca \\r\\n");
+    }
+
+    // 3. Có BOM UTF-8 (\xEF\xBB\xBF) ở đầu file
+    {
+        const std::string content = "\xEF\xBB\xBF---\ncreated: x\n---\nbody";
+        FrontmatterBlock b = splitFrontmatter(content);
+        check(b.hasFrontmatter, "splitFrontmatter: nhan dien khoi khi co BOM UTF-8");
+        check(b.lines.size() == 1 && b.lines[0] == "created: x",
+              "splitFrontmatter: doc dung dong khi co BOM");
+        check(content.substr(b.bodyOffset) == "body",
+              "splitFrontmatter: bodyOffset dung khi co BOM");
+    }
+
+    // 4. Khối rỗng (--- mở và đóng ngay lập tức) và dòng đóng nằm cuối file không có \n
+    {
+        const std::string emptyBlock = "---\n---\nbody";
+        FrontmatterBlock b1 = splitFrontmatter(emptyBlock);
+        check(b1.hasFrontmatter && b1.lines.empty() && emptyBlock.substr(b1.bodyOffset) == "body",
+              "splitFrontmatter: khoi frontmatter rong hop le");
+
+        const std::string noTrailingNewline = "---\ncreated: x\n---";
+        FrontmatterBlock b2 = splitFrontmatter(noTrailingNewline);
+        check(b2.hasFrontmatter && b2.bodyOffset == noTrailingNewline.size(),
+              "splitFrontmatter: dong dong o cuoi file khong co \\n");
+    }
+
+    // 5. Các trường hợp KHÔNG PHẢI frontmatter
+    {
+        const std::string notAtStart = "body\n---\ncreated: x\n---\n";
+        FrontmatterBlock b1 = splitFrontmatter(notAtStart);
+        check(!b1.hasFrontmatter && b1.bodyOffset == 0 && b1.lines.empty(),
+              "splitFrontmatter: khoi khong nam dau file -> bo qua");
+
+        const std::string unclosed = "---\ncreated: x\nbody";
+        FrontmatterBlock b2 = splitFrontmatter(unclosed);
+        check(!b2.hasFrontmatter && b2.bodyOffset == 0 && b2.lines.empty(),
+              "splitFrontmatter: khong co dong dong --- -> bo qua");
+
+        const std::string leadingSpace = " ---\ncreated: x\n---\nbody";
+        FrontmatterBlock b3 = splitFrontmatter(leadingSpace);
+        check(!b3.hasFrontmatter && b3.bodyOffset == 0,
+              "splitFrontmatter: co dau cach truoc --- -> khong phai frontmatter");
+    }
+
+    // 6. Các chuỗi biên (rỗng, chỉ có ---, dòng bên trong chứa dấu ---)
+    {
+        FrontmatterBlock bEmpty = splitFrontmatter("");
+        check(!bEmpty.hasFrontmatter && bEmpty.bodyOffset == 0,
+              "splitFrontmatter: chuoi rong khong sap");
+
+        FrontmatterBlock bOnlyDash = splitFrontmatter("---");
+        check(!bOnlyDash.hasFrontmatter && bOnlyDash.bodyOffset == 0,
+              "splitFrontmatter: chi co mot dong --- khong sap");
+
+        const std::string dashInside = "---\ntitle: Phan 1 --- Phan 2\n---\nbody";
+        FrontmatterBlock bInside = splitFrontmatter(dashInside);
+        check(bInside.hasFrontmatter && bInside.lines.size() == 1 && bInside.lines[0] == "title: Phan 1 --- Phan 2",
+              "splitFrontmatter: dau --- nam giua dong khong bi hieu nham la dong dong");
+    }
+}

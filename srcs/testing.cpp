@@ -6,82 +6,85 @@
 #include <string>
 #include <string_view>
 
-namespace {
-    bool canPrecedeTag(char c){
-        return std::isspace(static_cast<unsigned char>(c)) || c == '(' || c == '"';
-    }
-}
 
 
-
-
-
-std::vector<LinkSpan> findLinkSpans(const std::string& content){
-    std::vector<LinkSpan> result;
-    std::size_t pos = 0;
-    
-    while(true){
-        std::size_t open = content.find("[[", pos);
-        if(open == std::string::npos) break;
-        std::size_t close = content.find("]]", open + 2);
-        if(close == std::string::npos) break;
-        
-        std::string_view inner(content.data() + open + 2, close - (open + 2));
-
-        if(inner.find_first_of("\n[") != std::string_view::npos){
-            pos = open + 1;
-            continue;
-        }
-        result.push_back({open + 2, close});
-        pos = close + 2;
-
-    }
-   return result;
-}
-
-std::set<std::string> extractLinks(const std::string& content){
-    std::set<std::string> links;
-    for(const LinkSpan& s : findLinkSpans(content)){
-        std::string link = trimSpaces(parseLink(content.substr(s.innerBegin, s.innerEnd - s.innerBegin)).target);
-        if(!link.empty()){
-            links.insert(link);
-        }
-    }
-    return links;
-}
-
-
-
-
-// Chi doi tren RAM 
-std::string replaceLink(const std::string& content, const std::string& oldTitle, const std::string& newTitle){
-    const std::string oldkey = normalizeTitle(oldTitle);
-    if(oldkey.empty()) return content;
-
-    std::string results;
-    std::size_t lastCopiedPos = 0;
-
-    
-    for(const LinkSpan& s : findLinkSpans(content)){
-        std::string inner = content.substr(s.innerBegin, s.innerEnd - s.innerBegin);
-        
-        LinkParts parts = parseLink(inner); // tach target va suffix
-
-        if(normalizeTitle(parts.target) != oldkey) continue;
-        
-        // Noi tu moc cu den truoc dau [[
-        results.append(content, lastCopiedPos, s.innerBegin - 2 - lastCopiedPos); // Tru 2 cho [[
-        results += "[[" + newTitle + parts.suffix + "]]";
-        lastCopiedPos = s.innerEnd + 2; // Cap nhat khi da quet xong sau ]]
-    }
-    // Noi phan duoi con lai
-    results.append(content, lastCopiedPos, std::string::npos);
-    return results;
-}
-
-
-struct LinkParts{
-    std::string target; // Da cat dau "|, #"
-    std::string suffix; // Sau dau "|, #"
+struct FrontmatterBlock{
+    bool hasFrontmatter = false;               // Kiem tra su ton tai cua khoi frontmatter
+    std::size_t bodyOffset = 0;                // Index bat dau cua than bai ngay sau --- va ky tu xuong dong
+    std::vector<std::string> lines;            // Danh sach tung dong ben trong cap dau ---
 };
 
+// Cat \r o cuoi dong
+static std::string& stripCR(std::string& s){
+    if(!s.empty() && s.back() == '\r'){
+        s.pop_back();
+    }
+    return s;
+}
+
+FrontmatterBlock splitFrontmatter(const std::string& content){
+    FrontmatterBlock block;
+    std::size_t currPos = 0;
+
+    // Bo qua BOM UTF-8 neu co o dau file
+    if (content.size() >= 3 && 
+            static_cast<unsigned char>(content[0]) == 0xEF &&
+            static_cast<unsigned char>(content[1]) == 0xBB &&
+            static_cast<unsigned char>(content[2]) == 0xBF) {
+            currPos = 3;
+        }
+    
+    std::size_t firstNewLine = content.find('\n', currPos);
+    if(firstNewLine == std::string::npos) return block;
+
+    std::string firstLine = stripCR(content.substr(currPos, firstNewLine - currPos));
+    if(firstLine != "---") return block; // dong dau khong phai ---  -> khong co frontmatter
+
+    currPos = firstNewLine + 1;
+    std::vector<std::string> tempLines;
+
+    while(currPos <= content.size()){
+        std::size_t nextNewline = content.find('\n', currPos);
+        std::string rawLine;
+        std::size_t nextPos;
+        
+        if(nextNewline == std::string::npos){
+            // toi dong cuoi cung cua file(ko co \n o cuoi)
+            rawLine = content.substr(currPos);
+            nextPos = content.size() + 1; // danh dau ket thuc vong lap
+        }else{
+            rawLine = content.substr(currPos, nextNewline - currPos);
+            nextPos = nextNewline + 1;
+        }
+
+        std::string cleanLine = stripCR(rawLine);
+        if(cleanLine == "---"){ // neu gap dong chi co "---"
+            block.hasFrontmatter = true;
+            block.lines = std::move(tempLines);
+            // bodyOffset tro ve sau \n hoac cuoi file neu khong co \n
+            block.bodyOffset = (nextNewline == std::string::npos) ? content.size() : (nextNewline + 1);
+            return block;
+        }
+        tempLines.push_back(cleanLine);
+        if(nextNewline == std::string::npos) break;
+        currPos = nextPos;
+
+    }
+    return block; // chay ma khong thay dong "---"
+}   
+
+
+
+/*
+---\nAuthor: tien co ny\nDate: 14/11/2026\n---\n(aus kergskejg ekrgskjert)
+                         ^
+                         |
+
+currPos = 4;
+next_curr_pos = x;
+-> 
+
+abcder\n
+3456789
+
+*/

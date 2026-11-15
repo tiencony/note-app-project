@@ -4,16 +4,18 @@
 #include <cstddef>
 #include <string>
 #include <vector>
+#include <string_view>
 
 
 
+bool equalsIgnoreCase(std::string_view str1, std::string_view str2);
 
-bool equalsIgnoreCase(const std::string& str1, const std::string& str2);
-std::size_t findIgnoreCase(const std::string& text, const std::string& keyword);
-bool containsIgnoreCase(const std::string& text, const std::string& keyword);
+std::size_t findIgnoreCase(std::string_view text, std::string_view keyword);
 
-std::string makeSnippet(const std::string& text, std::size_t pos, std::size_t keywordLen);
+bool containsIgnoreCase(std::string_view text, std::string_view keyword);
 
-std::string trimSpaces(const std::string& s);
+std::string makeSnippet(std::string_view text, std::size_t pos, std::size_t keywordLen);
+
+std::string_view trimSpaces(std::string_view s);
 
 #endif

@@ -53,3 +53,4 @@ void testAliasLinksInManager();
 void testRenameKeepsSuffix();
 void testRenameSelfLinkAlias();
 void testTagsInsideLinksInManager();
+void testSplitFrontmatter(); 
