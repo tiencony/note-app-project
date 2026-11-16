@@ -25,8 +25,6 @@ void testListNotes();
 
 
 
-
-
 void testValidateNewTitle();
 void testRenameErrors();
 void testRenameSelfLink();
@@ -53,4 +51,17 @@ void testAliasLinksInManager();
 void testRenameKeepsSuffix();
 void testRenameSelfLinkAlias();
 void testTagsInsideLinksInManager();
-void testSplitFrontmatter(); 
+// void testSplitFrontmatter(); 
+
+
+void testSplitFrontmatter();
+void testFrontmatterValues();
+void testParseTagList();
+void testSetFrontmatter();
+void testTagsFromFrontmatter();
+void testLinksInFrontmatter();
+void testSnippetCR();
+void testReadFileNormalizes();
+
+
+

@@ -28,14 +28,6 @@ bool canPrecedeTag(char c) {
 
 
 
-// Cat \r o cuoi dong.
-std::string_view stripCR(std::string_view s) {
-    if (!s.empty() && s.back() == '\r') {
-        s.remove_suffix(1);
-    }
-    return s;
-}
-
 // Ham tach bo dau ngoac kep: "..." hoac '...'.
 std::string_view unquote(std::string_view s) {
     if (s.size() >= 2) {
@@ -71,59 +63,18 @@ std::optional<KeyValue> parseKeyValueLine(std::string_view line){
     if(key.empty()) return std::nullopt;
     return KeyValue{key, unquote(trimSpaces(line.substr(colonPos + 1)))};
 }
+
+
+// true neu `line` la dong "khoa: ..." voi dung khoa can tim.
+// Chi tra ve bool (khong tra view) de noi goi co the SUA `line` ngay sau do ma khong lo view treo.
+bool isKeyLine(std::string_view line, std::string_view key){
+    const auto kv = parseKeyValueLine(line);
+    return kv && kv->key == key;
 }
 
+} // dong namespace
 
-// Chua toi uu, can phai sua lai sau.
-std::set<std::string> extractTags(std::string_view content) {
-    std::set<std::string> tags;
-    FrontmatterBlock block = splitFrontmatter(content);
-    std::string_view body = content.substr(block.bodyOffset);
 
-    if (block.hasFrontmatter) {
-        std::string_view rawTags = getFrontmatterValue(block.lines, "tags");
-        tags = parseTagList(rawTags);
-    }
-
-    std::vector<LinkSpan> links = findLinkSpans(body);
-
-    auto isInLink = [&](std::size_t pos) {
-        for (const auto& link : links) {
-            // Vung link tinh tu dau [ dau tien den dau ] cuoi cung.
-            if (pos + 2 >= link.innerBegin && pos <= link.innerEnd + 2) {
-                return true;
-            }
-        }
-        return false;
-    };
-
-    const std::size_t len = body.size();
-    for (std::size_t i = 0; i < len; i++) {
-        if (body[i] != '#') continue;
-        if (i != 0 && !canPrecedeTag(body[i - 1])) continue;
-        if (isInLink(i)) continue;
-
-        // Check sau # phai la chu hoac so.
-        std::size_t j = i + 1;
-        if (j >= len || !std::isalnum(static_cast<unsigned char>(body[j]))) {
-            continue;
-        }
-
-        std::string tag;
-        while (j < len) {
-            unsigned char ch = static_cast<unsigned char>(body[j]);
-            if (std::isalnum(ch) || ch == '_' || ch == '-') {
-                tag += static_cast<char>(std::tolower(ch));
-                j++;
-            } else {
-                break;
-            }
-        }
-        tags.insert(std::move(tag));
-        i = j - 1;
-    }
-    return tags;
-}
 
 
 
@@ -228,9 +179,9 @@ std::string replaceLink(std::string_view content, std::string_view oldTitle, std
         result += "[[";
         result += newTitle;
         result += parts.suffix;         
-        result += parts.suffix;
+        
 
-
+        result += "]]";
         lastCopiedPos = s.innerEnd + 2; // Cap nhat khi da quet xong sau ]]
     }
     // Noi phan duoi con lai
@@ -249,56 +200,31 @@ std::string replaceLink(std::string_view content, std::string_view oldTitle, std
 // Chua sua xong
 FrontmatterBlock splitFrontmatter(std::string_view content){
     FrontmatterBlock block;
-    std::size_t currPos = 0;
 
-    // Bo qua BOM UTF-8 neu co o dau file
-    if (content.size() >= 3 && 
-        static_cast<unsigned char>(content[0]) == 0xEF &&
-        static_cast<unsigned char>(content[1]) == 0xBB &&
-        static_cast<unsigned char>(content[2]) == 0xBF){
-        block.bomLen = 3;
-        currPos = 3;
-    }
-
-    block.bodyOffset = block.bomLen;
-    
     // Dong dau phai la "---"
-    std::size_t firstNewLine = content.find('\n', currPos);
-    if(firstNewLine == std::string_view::npos) return block;
-
-    block.eol = (firstNewLine > currPos && content[firstNewLine - 1] == '\r') ? "\r\n" : "\n"; 
-    std::string_view firstLine = stripCR(content.substr(currPos, firstNewLine - currPos));
-    if(firstLine != "---") return block; // dong dau khong phai ---  -> khong co frontmatter
+    std::size_t firstNewLine = content.find('\n');
+    if(firstNewLine == std::string_view::npos || content.substr(0, firstNewLine) != "---") return block;
 
 
-    currPos = firstNewLine + 1;
-    std::vector<std::string> tempLines;
+    std::vector<std::string> lines;
+    std::size_t currPos = firstNewLine + 1;
 
     while(currPos <= content.size()){
         std::size_t nextNewline = content.find('\n', currPos);
-        std::string_view rawLine;
-        std::size_t nextPos;
-        
-        if(nextNewline == std::string::npos){
-            // toi dong cuoi cung cua file(ko co \n o cuoi)
-            rawLine = content.substr(currPos);
-            nextPos = content.size() + 1; // danh dau ket thuc vong lap
-        }else{
-            rawLine = content.substr(currPos, nextNewline - currPos);
-            nextPos = nextNewline + 1;
-        }
 
-        std::string_view cleanLine = stripCR(rawLine);
-        if(cleanLine == "---"){ // neu gap dong chi co "---"
+        
+        const std::string_view line = (nextNewline == std::string_view::npos)
+                                    ? content.substr(currPos) : content.substr(currPos, nextNewline - currPos);
+
+        if(line == "---"){
             block.hasFrontmatter = true;
-            block.lines = std::move(tempLines);
-            // bodyOffset tro ve sau \n hoac cuoi file neu khong co \n
-            block.bodyOffset = (nextNewline == std::string::npos) ? content.size() : (nextNewline + 1);
+            block.lines = std::move(lines);
+            block.bodyOffset = (nextNewline == std::string_view::npos) ? content.size() : nextNewline + 1;
             return block;
         }
-        tempLines.emplace_back(cleanLine);
-        if(nextNewline == std::string::npos) break;
-        currPos = nextPos;
+        if(nextNewline == std::string_view::npos) break;  // het file ma chua co dong dong
+        lines.emplace_back(line);
+        currPos = nextNewline + 1;
 
     }
     return block; // chay ma khong thay dong "---"
@@ -310,21 +236,17 @@ FrontmatterBlock splitFrontmatter(std::string_view content){
 
 
 
-// chua sua xong
-std::string_view getFrontmatterValue(const std::vector<std::string>& lines, std::string_view targetKey){
+std::optional<std::string> getFrontmatterValue(const std::vector<std::string>& lines, std::string_view key){
     for(const std::string& line : lines){
-        auto [key, value] = parseKeyValueLine(line);
-        if(!key.empty() && key == targetKey){
-            return value;
-        }
+        const auto kv = parseKeyValueLine(line);
+        if(kv && kv->key == key) return std::string(kv->value);
     }
-    return "";
+    return std::nullopt;
 }
 
 
 
 
-// chua sua xong
 std::set<std::string> parseTagList(std::string_view rawValue){
     std::set<std::string> tags;
     std::string_view v = trimSpaces(rawValue);
@@ -343,42 +265,99 @@ std::set<std::string> parseTagList(std::string_view rawValue){
 }
 
 
-std::string setFrontmatterValue(std::string_view content,  std::string_view targetKey,  std::string_view newValue){
+
+std::string setFrontmatterValue(std::string_view content,
+                                std::string_view key,
+                                std::string_view value){
+    key = trimSpaces(key);
+    if(key.empty() || key.find(':') != std::string_view::npos ||
+       hasLineBreak(key) || hasLineBreak(value)){
+        return std::string(content);
+    }
+
     FrontmatterBlock block = splitFrontmatter(content);
-    std::string newLine;
-    newLine.reserve(targetKey.size() + 2 + newValue.size());
-    appendView(newLine, targetKey);
-    newLine += ": ";
-    appendView(newLine, newValue);
 
-    std::string body(content.substr(block.bodyOffset));
+    std::string newLine(key);
+    newLine += ':';
+    if(!value.empty()){
+        newLine += ' ';
+        newLine += value;
+    }
 
-    
-    // chua co frontmatter -> tao moi voi 1 dong
-    if(!block.hasFrontmatter){
-        block.lines.push_back(newLine);
-    }else{
-        // da co khoi frontmatter -> tim xem targetKey da co chx
-        bool updated = false;
+    bool replaced = false;
+    if(block.hasFrontmatter){
         for(std::string& line : block.lines){
-            auto [key, val] = parseKeyValueLine(line);
-            if(!key.empty() && key == targetKey){
-                line = newLine;
-                updated = true;
+            if(isKeyLine(line, key)){
+                line = newLine;          // an toan: khong con view nao tro vao `line`
+                replaced = true;
                 break;
             }
         }
-        if(!updated){
-            block.lines.push_back(newLine);
-        }
     }
-    // lap rap thanh chuoi hoan chinh
+    if(!replaced) block.lines.push_back(newLine);
+
     std::string result = "---\n";
     for(const std::string& line : block.lines){
-        result += line + "\n";
+        result += line;
+        result += '\n';
     }
     result += "---\n";
-    result += body;
-
+    result += content.substr(block.bodyOffset);              // than bai: nguyen ven
     return result;
+}
+
+
+
+
+
+// Chua toi uu, can phai sua lai sau.
+std::set<std::string> extractTags(std::string_view content) {
+    std::set<std::string> tags;
+
+    // Nguon 1: "tags: [...]" trong frontmatter
+    const FrontmatterBlock block = splitFrontmatter(content);
+    if(block.hasFrontmatter){
+        if(const auto raw = getFrontmatterValue(block.lines, "tags")){
+            tags = parseTagList(*raw);
+        }
+    }
+
+    // Nguon 2: "#tag" trong than bai (khong quet frontmatter, khong quet ben trong [[ ]])
+    const std::string_view body = content.substr(block.bodyOffset);
+    std::vector<LinkSpan> links = findLinkSpans(body);
+
+    // Cac vi tri '#' duoc hoi theo thu tu tang dan nen chi can mot chi so truot.
+    // Vung cua mot link: tu "[[" den het "]]" = [innerBegin - 2, innerEnd + 2)
+    std::size_t li = 0;
+    auto isInLink = [&](std::size_t pos){
+        while(li < links.size() && links[li].innerEnd + 2 <= pos) li++;
+        return li < links.size() && pos + 2 >= links[li].innerBegin;
+    };
+
+    const std::size_t len = body.size();
+    for (std::size_t i = 0; i < len; i++) {
+        if (body[i] != '#') continue;
+        if (i != 0 && !canPrecedeTag(body[i - 1])) continue;
+        if (isInLink(i)) continue;
+
+        // Check sau # phai la chu hoac so.
+        std::size_t j = i + 1;
+        if (j >= len || !std::isalnum(static_cast<unsigned char>(body[j]))) {
+            continue;
+        }
+
+        std::string tag;
+        while (j < len) {
+            unsigned char ch = static_cast<unsigned char>(body[j]);
+            if (std::isalnum(ch) || ch == '_' || ch == '-') {
+                tag += static_cast<char>(std::tolower(ch));
+                j++;
+            } else {
+                break;
+            }
+        }
+        tags.insert(std::move(tag));
+        i = j - 1;
+    }
+    return tags;
 }

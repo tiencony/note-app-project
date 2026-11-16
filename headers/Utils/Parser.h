@@ -44,12 +44,11 @@ std::string replaceLink(
 
 
 
-
+// DIEU KIEN: content da duoc chuan hoa luc doc file (readFileToString): khong co BOM,
+// xuong dong chi la "\n". Parser khong tu xu ly BOM hay '\r'.
 struct FrontmatterBlock{
     bool hasFrontmatter = false;
-    std::size_t bomLen = 0;          // 3 neu file bat dau bang BOM UTF-8, nguoc lai 0
-    std::size_t bodyOffset = 0;      // vi tri bat dau than bai (khong co khoi: = bomLen)
-    std::string eol = "\n";          // kieu xuong dong cua file ("\n" hoac "\r\n")
+    std::size_t bodyOffset = 0;      // vi tri bat dau body (khong co khoi: = 0)
     std::vector<std::string> lines;  // cac dong ben trong khoi, da cat '\r'
 };
 

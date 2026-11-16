@@ -200,7 +200,7 @@ void testTagsAndLinks(){
 
 
 
-
+/*
 void testSplitFrontmatter() {
     // 1. Trường hợp chuẩn (xuống dòng Unix \n)
     {
@@ -284,3 +284,6 @@ void testSplitFrontmatter() {
               "splitFrontmatter: dau --- nam giua dong khong bi hieu nham la dong dong");
     }
 }
+
+
+*/

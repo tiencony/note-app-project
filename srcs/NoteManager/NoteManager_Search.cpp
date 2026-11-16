@@ -5,7 +5,7 @@
 
 std::vector<std::string> NoteManager::searchTitle(const std::string& keyword) const{
     std::vector<std::string> results;
-    const std::string key = trimSpaces(keyword);
+    const std::string_view key = trimSpaces(keyword);
     if(key.empty()) return results;
     for(const Note& note : notesArray){
         if(containsIgnoreCase(note.getTitle(), key)){
@@ -18,7 +18,7 @@ std::vector<std::string> NoteManager::searchTitle(const std::string& keyword) co
 
 std::vector<SearchResult> NoteManager::searchContent(const std::string& keyword) const{
     std::vector<SearchResult> results;
-    const std::string key = trimSpaces(keyword);
+    const std::string_view key = trimSpaces(keyword);
     if(key.empty()) return results;
     
     for(const Note& note : notesArray){
