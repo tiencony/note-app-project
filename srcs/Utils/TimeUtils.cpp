@@ -9,9 +9,14 @@
 namespace fs = std::filesystem;
 
 std::string formatTime(std::time_t t){
-    std::tm* local = std::localtime(&t);
+    std::tm tmv{};
+#ifdef _WIN32
+    if (localtime_s(&tmv, &t) != 0) return "Unknown";
+#else
+    if (!localtime_r(&t, &tmv)) return "Unknown";
+#endif
     std::ostringstream oss;
-    oss << std::put_time(local, "%Y-%m-%d %H:%M:%S");
+    oss << std::put_time(&tmv, "%Y-%m-%d %H:%M:%S");
     return oss.str();
 }
 

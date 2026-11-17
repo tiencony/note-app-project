@@ -57,19 +57,15 @@ NoteError NoteManager::createNote(const std::string &title, const std::string &c
     fs::create_directories(root, ec);
     if(ec) return NoteError::WriteFailed;
 
-    const std::string filePath = makePath(title);    
-    std::ofstream outFile(filePath);
-    if(!outFile) return NoteError::WriteFailed;
-
-    outFile << content;
-    outFile.close();
-    if(outFile.fail()){                                                  // loi luc ghi (dia day...)
-        fs::remove(filePath, ec);                                        // don file do dang
-        return NoteError::WriteFailed;
+    const std::string clean = normalizeContent(content);
+    if(!writeFileAtomic(makePath(title), clean, /*overwrite=*/false)){
+        // Co the file duoc tao ngoai chuong trinh hoac bi loi that
+        return fs::exists(makePath(title), ec) ? NoteError::AlreadyExists
+                                               : NoteError::WriteFailed;
     }
 
 
-    notesArray.push_back(Note(title, content, getCurrentTime()));
+    notesArray.push_back(Note(title, clean, getFileTime(makePath(title))));
     linkIndexDirty = true;
     return NoteError::Ok;
 
@@ -91,7 +87,7 @@ std::vector<NoteInfo> NoteManager::listNotes() const{
 
 bool NoteManager::checkTitle(const std::string &input) const{
     if (input.empty() || input.find_first_not_of(' ') == std::string::npos) return false;
-    if (input.find_first_of("/\\:*?\"<>|#^[]") != std::string::npos) return false;
+    if (input.find_first_of("/\\:*?\"<>|#^[]\t\n") != std::string::npos) return false;
     if (input.back() == '.' || input.back() == ' ') return false;
     if(input.front() == ' ') return false;
     if(input.size() > 3 && equalsIgnoreCase(input.substr(input.size() - 3), ".md")) return false;
@@ -149,10 +145,12 @@ OpenResult NoteManager::openNote(const std::string& title){
 
 // Cap nhat tren disk lan RAM
 bool NoteManager::writeNoteContent(int i , const std::string& content){
-    if(!writeFileAtomic(makePath(notesArray[i].getTitle()), content)) return false;
-    
-    notesArray[i].setContent(content);
-    notesArray[i].setLastModified(getCurrentTime());
+    const std::string clean = normalizeContent(content);
+    const std::string path = makePath(notesArray[i].getTitle());
+    if(!writeFileAtomic(path, clean)) return false;
+
+    notesArray[i].setContent(clean);
+    notesArray[i].setLastModified(getFileTime(path));
     linkIndexDirty = true;
     return true;
 }
@@ -259,33 +257,38 @@ SyncReport NoteManager::refreshFromDisk(){
         rep.ok = false;
         return rep;
     }
-    
-    // Duyet RAM
-    std::unordered_map<std::string, const Note*> oldByKey;
-    oldByKey.reserve(notesArray.size());
-    for(const Note& note : notesArray){
-        oldByKey[normalizeTitle(note.getTitle())] = &note;
-    }
 
-    // Duyet o dia
-    std::set<std::string> seen;
-    for(const Note& freshNote : fresh){
-        std::string key = normalizeTitle(freshNote.getTitle());
-        seen.insert(key);
-        
-        auto it = oldByKey.find(key);
-        if(it == oldByKey.end()){
-            rep.added.push_back(freshNote.getTitle());
-        }else if(it->second->getContent() != freshNote.getContent()){
-            rep.changed.push_back(freshNote.getTitle());
+
+    {// gioi han scope cua oldByKey tranh sau bi goi nham
+        // Duyet RAM
+        std::unordered_map<std::string, const Note*> oldByKey; // Luu dia chi cua cac notes
+        oldByKey.reserve(notesArray.size());
+        for(const Note& note : notesArray){
+            oldByKey[normalizeTitle(note.getTitle())] = &note;
         }
 
-    }
-    for(const Note& note : notesArray){
-        if(seen.count(normalizeTitle(note.getTitle())) == 0){
-            rep.removed.push_back(note.getTitle());
+        // Duyet o dia
+        std::set<std::string> seen;
+        for(const Note& freshNote : fresh){
+            std::string key = normalizeTitle(freshNote.getTitle());
+            seen.insert(key);
+            
+            auto it = oldByKey.find(key);
+            if(it == oldByKey.end()){
+                rep.added.push_back(freshNote.getTitle());
+            }else if(it->second->getContent() != freshNote.getContent()){
+                rep.changed.push_back(freshNote.getTitle());
+            }
         }
-    }
+
+        for(const Note& note : notesArray){
+            if(seen.count(normalizeTitle(note.getTitle())) == 0){
+                rep.removed.push_back(note.getTitle());
+            }
+        }
+    } // dong scope
+
+
     if(rep.hasChanges()){
         notesArray = std::move(fresh);
         linkIndexDirty = true;

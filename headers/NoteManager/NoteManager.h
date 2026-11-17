@@ -1,3 +1,36 @@
+// ============================================================================
+// NoteManager.h - Quan ly tap ghi chu: dia la NGUON SU THAT, RAM la cache.
+//
+// MO HINH   : notesArray (RAM) phan anh thu muc `root`. Sua ngoai chuong trinh
+//             thi RAM cu cho den khi goi openNote / loadNotesFromDisk /
+//             refreshFromDisk.
+// BAT BIEN  : - Moi title trong notesArray hop le (checkTitle) va duy nhat
+//               theo normalizeTitle.
+//             - Moi thay doi RAM lam thay doi noi dung/title phai dat
+//               linkIndexDirty = true.
+// BO CUC FILE (cung mot class):
+//   NoteManager.cpp        CRUD, load/refresh, rename
+//   NoteManager_Links.cpp  index link: backlinks, brokenLinks, cap nhat link khi rename
+//   NoteManager_Search.cpp searchTitle / searchContent
+//   NoteManager_Tags.cpp   listByTag / tagCounts
+// BAO LOI   : NoteError / struct ket qua. KHONG nem exception. Cac ham tra ket
+//             qua can duoc kiem tra (failedNotes, stale, skipped...).
+// LIFETIME  : Khong co ham nao tra tham chieu/con tro vao notesArray; openNote
+//             tra BAN SAO. Giu nguyen quy uoc nay.
+// THREAD    : KHONG thread-safe. Cac ham const van sua duoc index (mutable).
+// ============================================================================
+
+// -------------------- PHAN LINK ------------------------
+// Index link (lazy). Ba map mutable duoc dung lai khi linkIndexDirty == true.
+//   titleByKey        : key chuan hoa -> title goc
+//   linksBySource     : key note nguon -> link di ra (ten goc trong [[...]])
+//   backlinksByTitle  : key dich -> tap key note nguon
+// Quy uoc: moi key o day deu di qua normalizeTitle().
+// Hien rebuild TOAN BO moi lan dirty (O(tong dung luong)); can tang dan neu vault lon.
+
+
+
+
 #ifndef NOTE_MANAGER_H
 #define NOTE_MANAGER_H
 

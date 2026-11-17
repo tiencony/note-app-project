@@ -1,3 +1,22 @@
+// ============================================================================
+// Parser.h - Phan tich van ban Markdown cua ghi chu (thuan ham, khong I/O)
+//
+// VAI TRO   : Tach [[link]], #tag, frontmatter "---" va chuan hoa key
+//             (normalizeTitle / normalizeTag) tu mot chuoi noi dung.
+// KHONG LAM : Khong doc/ghi file, khong biet NoteManager hay duong dan.
+// DUOC DUNG : NoteManager (index link, tag, rename).
+//
+// GIA DINH  : content da qua readFileToString: khong BOM, xuong dong la "\n".
+//             Parser KHONG tu xu ly BOM/'\r'.
+// SO HUU    : LinkSpan chi la OFFSET (khong phai string_view) de khong bi treo
+//             khi chuoi goc bi sua. LinkParts so huu std::string.
+//             Moi ham nhan string_view chi dung trong thoi gian goi ham;
+//             KHONG luu lai.
+// LUU Y     : Hien chi dung tot cho ASCII (so sanh hoa/thuong theo byte).
+//             Chua bo qua vung code block / inline code. (xem TODO)
+// ============================================================================
+
+
 
 #ifndef PARSER_H
 #define PARSER_H
@@ -21,9 +40,11 @@ struct LinkSpan{
 };
 
 
-struct LinkParts{
-    std::string_view target;  // da cat dau cach
-    std::string_view suffix;  // tu ky tu '|' hoac '#' day tien tro di, giu nguyen van
+// So huu chuoi (std::string), KHONG phai view: co the tra ve / luu lai thoai mai,
+// khong phu thuoc vao chuoi `inner` da dung de tach.
+struct LinkParts {
+    std::string target;   // da cat dau cach
+    std::string suffix;   // tu ky tu '|' hoac '#' dau tien tro di, giu nguyen van
 };
 
 LinkParts parseLink(std::string_view inner);
